@@ -2,6 +2,10 @@ package com.leaguescape.overlay;
 
 import com.leaguescape.LeagueScapeConfig;
 import com.leaguescape.LeagueScapePlugin;
+import com.leaguescape.constants.TaskTypes;
+import com.leaguescape.icons.IconCache;
+import com.leaguescape.icons.IconResources;
+import com.leaguescape.icons.IconResolver;
 import com.leaguescape.area.AreaGraphService;
 import com.leaguescape.data.Area;
 import com.leaguescape.data.AreaStatus;
@@ -14,8 +18,6 @@ import com.leaguescape.wiki.OsrsWikiApiService;
 import com.leaguescape.worldunlock.WorldUnlockService;
 import com.leaguescape.worldunlock.WorldUnlockTile;
 import com.leaguescape.LeagueScapeSounds;
-import com.leaguescape.util.LeagueScapeColors;
-import com.leaguescape.util.LeagueScapeSwingUtil;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -68,7 +70,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 /**
  * World-map overlay for LeagueScape. Draws area polygons (locked/unlocked/unlockable) when the
  * world map is open; hover highlights an area with a white border; right-click opens an area
- * details popup (description, status, Unlock or World Unlocks button per mode, Tasks button). Tasks button opens the task
+ * details popup (description, status, Unlock button, Tasks button). Tasks button opens the task
  * grid popup for that area (tiles, claim/complete, icons from task type or Wiki). Also handles
  * polygon editing on the map (corner markers, move corner, add corner) when the plugin is in edit
  * mode. Renders on the map layer; does not draw on the game scene (use LockedRegionOverlay for
@@ -1003,49 +1005,17 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 			"Fill using others' corners: boundary updated (" + mainPolygon.size() + " corners, " + holes.size() + " hole(s)). Save (Done editing) to apply.", null);
 	}
 
-	private static final Color POPUP_BG = LeagueScapeColors.POPUP_BG;
-	private static final Color POPUP_TEXT = LeagueScapeColors.POPUP_TEXT;
+	private static final Color POPUP_BG = new Color(0x54, 0x4D, 0x41);
+	private static final Color POPUP_TEXT = new Color(0xC4, 0xB8, 0x96);
 	private static final Color POPUP_BORDER = new Color(0x2a, 0x28, 0x24);
+	private static final Color PRESSED_INSET_SHADOW = new Color(0, 0, 0, 70);
+	private static final int PRESSED_INSET = 2;
 	private static final Dimension RECTANGLE_BUTTON_SIZE = new Dimension(160, 28);
 	private static final int TASK_ICON_SIZE = 28;
 	/** Margin on all sides of the task tile; icon is scaled to fill the rest (same size for all). */
 	private static final int TASK_TILE_ICON_MARGIN = 12;
 	/** Cell is 72x72; inner area after margin is 64x64. All icons scale to fit this. */
 	private static final int TASK_ICON_MAX_FIT = 72 - 2 * TASK_TILE_ICON_MARGIN;
-	/** Local task icon filenames under com/taskIcons/ (no wiki lookup). */
-	private static final Map<String, String> TASK_TYPE_LOCAL_ICON = new HashMap<>();
-	static
-	{
-		TASK_TYPE_LOCAL_ICON.put("Combat", "Combat_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Mining", "Mining_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Fishing", "Fishing_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Cooking", "Cooking_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Woodcutting", "Woodcutting_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Prayer", "Prayer_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Crafting", "Crafting_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Smithing", "Smithing_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Fletching", "Fletching_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Herblore", "Herblore_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Thieving", "Thieving_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Agility", "Agility_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Firemaking", "Firemaking_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Farming", "Farming_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Runecraft", "Runecraft_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Magic", "Magic_icon.png");
-		TASK_TYPE_LOCAL_ICON.put("Hunter", "Hunter_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Construction", "Construction_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Slayer", "Slayer_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Sailing", "Sailing_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Quest", "Quest.png");
-		TASK_TYPE_LOCAL_ICON.put("Achievement Diary", "Achievement_Diaries.png");
-		TASK_TYPE_LOCAL_ICON.put("Diary", "Achievement_Diaries.png"); // legacy/alias; display as "Achievement Diary"
-		TASK_TYPE_LOCAL_ICON.put("Other", "Other_icon.png");
-		TASK_TYPE_LOCAL_ICON.put("Level", "Stats_icon.png");
-	}
-
-	/** Classpath-absolute path so resources under src/main/resources/com/taskIcons/ are found. */
-	private static final String TASK_ICONS_RESOURCE_PREFIX = "/com/taskIcons/";
-
 	/** Scale image to fit inside maxW x maxH preserving aspect ratio (never scale up). */
 	private static BufferedImage scaleToFit(BufferedImage src, int maxW, int maxH)
 	{
@@ -1122,27 +1092,21 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 		return null;
 	}
 
-	/** Local icon resource path for task (collection log, clue, or taskType map). Returns null for equip tasks (use Wiki). */
-	private static String getLocalTaskIconPath(String taskType, String displayName)
+	/** Local icon path for task (see {@link IconResolver#resolveTaskTileLocalIconPath}). Null for equip (Wiki). */
+	private static String getLocalTaskIconPath(String taskType, String displayName, String bossId)
 	{
-		if (isCollectionLogTask(taskType, displayName))
-			return TASK_ICONS_RESOURCE_PREFIX + "Collection_log_detail.png";
-		if (isClueTask(taskType, displayName))
-			return TASK_ICONS_RESOURCE_PREFIX + "Clue_scroll_v1.png";
-		if (taskType != null && TASK_TYPE_LOCAL_ICON.containsKey(taskType))
-			return TASK_ICONS_RESOURCE_PREFIX + TASK_TYPE_LOCAL_ICON.get(taskType);
-		return null;
+		return IconResolver.resolveTaskTileLocalIconPath(taskType, displayName, bossId);
 	}
 
 	/** Cache for raw local task icons (path -> image) so we don't reload on every zoom. */
 	private static final Map<String, BufferedImage> rawTaskIconCache = new java.util.concurrent.ConcurrentHashMap<>();
 
-	/** Load task icon from local taskIcons resources (raw, unscaled). Returns null if not found. Cached by path. */
-	private static BufferedImage loadRawLocalTaskIcon(String taskType, String displayName)
+	/** Load task icon from taskIcons/bossicons (raw, unscaled). Cached by path. */
+	private static BufferedImage loadRawLocalTaskIcon(String taskType, String displayName, String bossId)
 	{
-		String path = getLocalTaskIconPath(taskType, displayName);
+		String path = getLocalTaskIconPath(taskType, displayName, bossId);
 		if (path == null) return null;
-		return rawTaskIconCache.computeIfAbsent(path, p -> ImageUtil.loadImageResource(LeagueScapePlugin.class, p));
+		return rawTaskIconCache.computeIfAbsent(path, p -> IconCache.loadWithFallback(p, IconResources.GENERIC_TASK_ICON));
 	}
 
 	/** True if this task type uses an icon that should match Combat icon's largest dimension (Quest, Achievement Diary, Collection log). */
@@ -1150,8 +1114,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 	{
 		if (taskType != null)
 		{
-			if ("Quest".equalsIgnoreCase(taskType)) return true;
-			if ("Achievement Diary".equalsIgnoreCase(taskType) || "Achievement diary".equalsIgnoreCase(taskType) || "Diary".equalsIgnoreCase(taskType)) return true;
+			if (TaskTypes.QUEST.equalsIgnoreCase(taskType)) return true;
+			if (TaskTypes.isAchievementDiaryType(taskType)) return true;
 		}
 		return isCollectionLogTask(taskType, displayName);
 	}
@@ -1159,7 +1123,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 	/** Default/fallback icon for task tiles. */
 	private static BufferedImage loadTaskIcon()
 	{
-		BufferedImage img = ImageUtil.loadImageResource(LeagueScapePlugin.class, "complete_checkmark.png");
+		BufferedImage img = IconCache.loadWithFallback(IconResources.GENERIC_TASK_ICON,
+			IconResources.TASK_ICONS_RESOURCE_PREFIX + "Other_icon.png");
 		if (img != null)
 			return scaleToFit(img, TASK_ICON_SIZE, TASK_ICON_SIZE);
 		return null;
@@ -1186,7 +1151,39 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 	/** Button with empty_button_rectangle background and pressed shadow. Use for Tasks, Back to area, Complete, Claim. */
 	private static JButton newRectangleButton(String text, BufferedImage buttonRect, Color textColor)
 	{
-		JButton b = LeagueScapeSwingUtil.newRectangleButton(text, buttonRect, textColor);
+		BufferedImage img = buttonRect;
+		JButton b = new JButton(text)
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				if (img != null)
+				{
+					g.drawImage(img.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
+					g.setColor(getForeground());
+					g.setFont(getFont());
+					java.awt.FontMetrics fm = g.getFontMetrics();
+					String t = getText();
+					int x = (getWidth() - fm.stringWidth(t)) / 2;
+					int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+					g.drawString(t, x, y);
+				}
+				else
+				{
+					super.paintComponent(g);
+				}
+				if (getModel().isPressed())
+				{
+					g.setColor(PRESSED_INSET_SHADOW);
+					g.fillRect(PRESSED_INSET, PRESSED_INSET, getWidth() - 2 * PRESSED_INSET, getHeight() - 2 * PRESSED_INSET);
+				}
+			}
+		};
+		b.setForeground(textColor);
+		b.setFocusPainted(false);
+		b.setBorderPainted(false);
+		b.setContentAreaFilled(img == null);
+		b.setOpaque(img == null);
 		b.setPreferredSize(RECTANGLE_BUTTON_SIZE);
 		return b;
 	}
@@ -1202,8 +1199,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				super.paintComponent(g);
 				if (getModel().isPressed())
 				{
-					g.setColor(LeagueScapeSwingUtil.PRESSED_INSET_SHADOW);
-					g.fillRect(LeagueScapeSwingUtil.PRESSED_INSET, LeagueScapeSwingUtil.PRESSED_INSET, getWidth() - 2 * LeagueScapeSwingUtil.PRESSED_INSET, getHeight() - 2 * LeagueScapeSwingUtil.PRESSED_INSET);
+					g.setColor(PRESSED_INSET_SHADOW);
+					g.fillRect(PRESSED_INSET, PRESSED_INSET, getWidth() - 2 * PRESSED_INSET, getHeight() - 2 * PRESSED_INSET);
 				}
 			}
 		};
@@ -1214,7 +1211,31 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 	/** Icon-only button (e.g. close) with pressed inset shadow. */
 	private static JButton newPopupButtonWithIcon(BufferedImage iconImg, Color fallbackTextColor)
 	{
-		return LeagueScapeSwingUtil.newPopupButtonWithIcon(iconImg, fallbackTextColor);
+		JButton b = new JButton()
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				super.paintComponent(g);
+				if (getModel().isPressed())
+				{
+					g.setColor(PRESSED_INSET_SHADOW);
+					g.fillRect(PRESSED_INSET, PRESSED_INSET, getWidth() - 2 * PRESSED_INSET, getHeight() - 2 * PRESSED_INSET);
+				}
+			}
+		};
+		b.setFocusPainted(false);
+		b.setBorderPainted(false);
+		b.setContentAreaFilled(false);
+		b.setMargin(new Insets(0, 0, 0, 0));
+		if (iconImg != null)
+			b.setIcon(new javax.swing.ImageIcon(ImageUtil.resizeImage(iconImg, 24, 24)));
+		else
+		{
+			b.setText("X");
+			b.setForeground(fallbackTextColor);
+		}
+		return b;
 	}
 
 	/** Points display string: spendable total in point-buy mode, or "Points in [area]: X / Y" in points-to-complete mode. */
@@ -1283,7 +1304,6 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 
 			JDialog dialog = new JDialog(owner, "Area: " + displayName, false);
 			dialog.setUndecorated(true);
-			LeagueScapePlugin.registerEscapeToClose(dialog);
 			openAreaDetailsDialog = dialog;
 			dialog.addWindowListener(new java.awt.event.WindowAdapter()
 			{
@@ -1389,19 +1409,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				southPanel.add(tasksBtn);
 			}
 
-			// In World Unlock mode: show World Unlocks button (no Unlock button in area popup)
-			if (config.unlockMode() == LeagueScapeConfig.UnlockMode.WORLD_UNLOCK)
-			{
-				JButton worldUnlocksBtn = newRectangleButton("World Unlocks", buttonRect, POPUP_TEXT);
-				worldUnlocksBtn.addActionListener(e -> {
-					LeagueScapeSounds.play(audioPlayer, LeagueScapeSounds.BUTTON_PRESS, client);
-					dialog.dispose();
-					plugin.openWorldUnlockGrid();
-				});
-				southPanel.add(worldUnlocksBtn);
-			}
-			// Unlock button only when area is still locked and NOT in World Unlock mode
-			else if (!areaUnlocked)
+			// Unlock button only when area is still locked (and when in World Unlock, only if area has a tile in the grid)
+			if (!areaUnlocked && (!(config.unlockMode() == LeagueScapeConfig.UnlockMode.WORLD_UNLOCK) || worldUnlockArea))
 			{
 				JButton unlockBtn = new JButton("Unlock")
 				{
@@ -1425,8 +1434,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 						}
 						if (getModel().isPressed())
 						{
-							g.setColor(LeagueScapeSwingUtil.PRESSED_INSET_SHADOW);
-							g.fillRect(LeagueScapeSwingUtil.PRESSED_INSET, LeagueScapeSwingUtil.PRESSED_INSET, getWidth() - 2 * LeagueScapeSwingUtil.PRESSED_INSET, getHeight() - 2 * LeagueScapeSwingUtil.PRESSED_INSET);
+							g.setColor(PRESSED_INSET_SHADOW);
+							g.fillRect(PRESSED_INSET, PRESSED_INSET, getWidth() - 2 * PRESSED_INSET, getHeight() - 2 * PRESSED_INSET);
 						}
 					}
 				};
@@ -1545,7 +1554,6 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 
 			JDialog dialog = new JDialog(owner, displayName + " tasks", false);
 			dialog.setUndecorated(true);
-			LeagueScapePlugin.registerEscapeToClose(dialog);
 			openTaskGridDialog = dialog;
 			dialog.addWindowListener(new java.awt.event.WindowAdapter()
 			{
@@ -1577,37 +1585,27 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				new javax.swing.border.EmptyBorder(10, 12, 10, 12)));
 			content.setOpaque(true);
 
-			// Header: Points (left), title "[area name] tasks" (center), buttons (right) on one line
+			// Header: title "[area name] tasks" + points + close button
 			JPanel header = new JPanel(new java.awt.BorderLayout(4, 0));
 			header.setOpaque(false);
 			header.setBorder(new javax.swing.border.EmptyBorder(0, 0, 8, 0));
 			JPanel titleRow = new JPanel(new java.awt.BorderLayout(4, 0));
 			titleRow.setOpaque(false);
-			final JLabel[] pointsLabelHolder = new JLabel[1];
-			pointsLabelHolder[0] = new JLabel(getPointsDisplayText(area));
-			pointsLabelHolder[0].setForeground(POPUP_TEXT);
-			titleRow.add(pointsLabelHolder[0], java.awt.BorderLayout.WEST);
 			JLabel titleLabel = new JLabel(displayName + " tasks");
 			titleLabel.setForeground(POPUP_TEXT);
 			titleLabel.setFont(titleLabel.getFont().deriveFont(java.awt.Font.BOLD, 16f));
-			titleLabel.setHorizontalAlignment(JLabel.CENTER);
 			titleRow.add(titleLabel, java.awt.BorderLayout.CENTER);
-			JPanel eastTitleButtons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.TRAILING, 4, 0));
-			eastTitleButtons.setOpaque(false);
-			JButton rulesSetupBtn = newRectangleButton("Rules & Setup", buttonRect, POPUP_TEXT);
-			rulesSetupBtn.addActionListener(e -> {
-				LeagueScapeSounds.play(audioPlayer, LeagueScapeSounds.BUTTON_PRESS, client);
-				plugin.openSetupDialog();
-			});
-			eastTitleButtons.add(rulesSetupBtn);
 			JButton closeBtn = newPopupButtonWithIcon(xBtnImg, POPUP_TEXT);
 			closeBtn.addActionListener(e -> {
 				LeagueScapeSounds.play(audioPlayer, LeagueScapeSounds.BUTTON_PRESS, client);
 				dialog.dispose();
 			});
-			eastTitleButtons.add(closeBtn);
-			titleRow.add(eastTitleButtons, java.awt.BorderLayout.EAST);
+			titleRow.add(closeBtn, java.awt.BorderLayout.EAST);
 			header.add(titleRow, java.awt.BorderLayout.NORTH);
+			final JLabel[] pointsLabelHolder = new JLabel[1];
+			pointsLabelHolder[0] = new JLabel(getPointsDisplayText(area));
+			pointsLabelHolder[0].setForeground(POPUP_TEXT);
+			header.add(pointsLabelHolder[0], java.awt.BorderLayout.SOUTH);
 			content.add(header, java.awt.BorderLayout.NORTH);
 
 			// Grid panel: only non-locked tiles, inside scroll pane with vertical + horizontal scroll bars
@@ -1632,7 +1630,7 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				int iconMargin = Math.max(1, (tileSize * TASK_TILE_ICON_MARGIN) / 72);
 				int iconMaxFit = Math.max(1, tileSize - 2 * iconMargin);
 				// Reference size: Combat icon's largest dimension when scaled to iconMaxFit (Quest/Achievement Diary/Collection log match this)
-				BufferedImage combatRaw = loadRawLocalTaskIcon("Combat", null);
+				BufferedImage combatRaw = loadRawLocalTaskIcon("Combat", null, null);
 				BufferedImage combatScaled = combatRaw != null ? scaleToFitAllowUpscale(combatRaw, iconMaxFit, iconMaxFit) : null;
 				int refSize = (combatScaled != null) ? Math.max(combatScaled.getWidth(), combatScaled.getHeight()) : iconMaxFit;
 
@@ -1652,6 +1650,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 					else
 					{
 						String cacheKey = tile.getTaskType() != null ? ("type:" + tile.getTaskType()) : tile.getDisplayName();
+						if (TaskTypes.KILL_COUNT.equalsIgnoreCase(tile.getTaskType()) && tile.getBossId() != null && !tile.getBossId().isEmpty())
+							cacheKey = "killCount:" + tile.getBossId();
 						BufferedImage raw = taskIconCache.get(cacheKey);
 						if (raw == null)
 						{
@@ -1674,7 +1674,7 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 							}
 							else
 							{
-								raw = loadRawLocalTaskIcon(tile.getTaskType(), tile.getDisplayName());
+								raw = loadRawLocalTaskIcon(tile.getTaskType(), tile.getDisplayName(), tile.getBossId());
 								if (raw == null) raw = defaultTaskIcon;
 								taskIconCache.put(cacheKey, raw);
 							}
@@ -1759,16 +1759,14 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				dialog.dispose();
 				showAreaDetailsPopup(area);
 			});
-			// Zoom out / Zoom in buttons, right-aligned (square style)
-			JButton zoomOutBtn = newRectangleButton("−", tileSquare, POPUP_TEXT);
-			zoomOutBtn.setPreferredSize(new Dimension(28, 28));
+			// Zoom out / Zoom in buttons, right-aligned
+			JButton zoomOutBtn = newRectangleButton("−", buttonRect, POPUP_TEXT);
 			zoomOutBtn.setToolTipText("Zoom out");
 			zoomOutBtn.addActionListener(e -> {
 				zoomHolder[0] = Math.max(ZOOM_MIN, zoomHolder[0] - ZOOM_STEP);
 				SwingUtilities.invokeLater(refreshHolder[0]);
 			});
-			JButton zoomInBtn = newRectangleButton("+", tileSquare, POPUP_TEXT);
-			zoomInBtn.setPreferredSize(new Dimension(28, 28));
+			JButton zoomInBtn = newRectangleButton("+", buttonRect, POPUP_TEXT);
 			zoomInBtn.setToolTipText("Zoom in");
 			zoomInBtn.addActionListener(e -> {
 				zoomHolder[0] = Math.min(ZOOM_MAX, zoomHolder[0] + ZOOM_STEP);
@@ -1981,7 +1979,6 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 		String windowTitle = isMystery ? "Mystery tile" : tile.getDisplayName();
 		JDialog detail = new JDialog(frameOwner, windowTitle, false);
 		detail.setUndecorated(true);
-		LeagueScapePlugin.registerEscapeToClose(detail);
 
 		JPanel content = new JPanel(new java.awt.BorderLayout(8, 8));
 		content.setBackground(POPUP_BG);
@@ -2201,7 +2198,6 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 
 			JDialog dialog = new JDialog(owner, "Neighbors for " + displayName, false);
 			dialog.setUndecorated(true);
-			LeagueScapePlugin.registerEscapeToClose(dialog);
 
 			JPanel content = new JPanel();
 			content.setLayout(new java.awt.BorderLayout(8, 8));

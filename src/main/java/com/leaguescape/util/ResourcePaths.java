@@ -18,6 +18,8 @@ public final class ResourcePaths
 	public static final String WORLD_UNLOCKS_JSON = "/world_unlocks.json";
 	/** Goals definition (classpath root). */
 	public static final String GOALS_JSON = "/goals.json";
+	/** Achievement diary / kingdom area groupings (classpath root). */
+	public static final String AREA_MAPPING_JSON = "/area_mapping.json";
 
 	/** Default filename for areas export (no leading slash). */
 	public static final String DEFAULT_AREAS_FILENAME = "areas.json";

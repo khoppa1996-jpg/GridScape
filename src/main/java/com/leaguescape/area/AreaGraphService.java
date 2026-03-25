@@ -12,10 +12,10 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 import com.leaguescape.data.Area;
-import com.leaguescape.util.LeagueScapeConfigConstants;
-import com.leaguescape.util.ResourceJsonLoader;
-import com.leaguescape.util.ResourcePaths;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,7 +39,8 @@ import net.runelite.client.config.ConfigManager;
 @Singleton
 public class AreaGraphService
 {
-	private static final String CONFIG_GROUP = LeagueScapeConfigConstants.CONFIG_GROUP_CUSTOM_AREAS;
+	private static final String AREAS_RESOURCE = "areas.json";
+	private static final String CONFIG_GROUP = "leaguescapeConfig";
 	private static final String KEY_CUSTOM_AREAS = "customAreas";
 	private static final String KEY_REMOVED_AREAS = "removedAreas";
 
@@ -66,10 +67,7 @@ public class AreaGraphService
 		.registerTypeAdapter(Area.class, new AreaPolygonsAdapter())
 		.create();
 
-	/**
-	 * Custom Gson adapter for Area: deserializes "polygon" (legacy single polygon) or "polygons";
-	 * always serializes "polygons". Ensures id, displayName, polygons, includes, neighbors, unlockCost, pointsToComplete.
-	 */
+	/** Handles Area JSON: reads "polygon" (legacy) or "polygons", always writes "polygons". */
 	private static class AreaPolygonsAdapter implements JsonDeserializer<Area>, JsonSerializer<Area>
 	{
 		@Override
@@ -171,15 +169,27 @@ public class AreaGraphService
 		log.debug("Loaded {} areas ({} built-in, {} removed, {} custom)", areas.size(), builtIn.size(), removed.size(), custom.size());
 	}
 
-	/** Loads areas from built-in resource areas.json (classpath root). Returns empty list if missing or parse error. */
 	private List<Area> loadBuiltInAreas()
 	{
-		java.lang.reflect.Type type = new TypeToken<List<Area>>() { }.getType();
-		List<Area> list = ResourceJsonLoader.load(getClass(), ResourcePaths.AREAS_JSON, type, GSON, log);
-		return list != null ? list : new ArrayList<>();
+		try (InputStream is = getClass().getResourceAsStream("/" + AREAS_RESOURCE))
+		{
+			if (is == null)
+			{
+				log.warn("areas.json not found in resources");
+				return new ArrayList<>();
+			}
+			List<Area> list = GSON.fromJson(
+				new InputStreamReader(is, StandardCharsets.UTF_8),
+				new TypeToken<List<Area>>() { }.getType());
+			return list != null ? list : new ArrayList<>();
+		}
+		catch (Exception e)
+		{
+			log.error("Failed to load areas.json", e);
+			return new ArrayList<>();
+		}
 	}
 
-	/** Loads custom areas from config (KEY_CUSTOM_AREAS JSON). Returns empty list if unset or invalid. */
 	private List<Area> loadCustomAreas()
 	{
 		String raw = configManager.getConfiguration(CONFIG_GROUP, KEY_CUSTOM_AREAS);
@@ -196,7 +206,6 @@ public class AreaGraphService
 		}
 	}
 
-	/** Loads the set of built-in area IDs that the user has "removed" (hidden). Stored in config. */
 	private Set<String> loadRemovedAreaIds()
 	{
 		String raw = configManager.getConfiguration(CONFIG_GROUP, KEY_REMOVED_AREAS);
@@ -213,7 +222,6 @@ public class AreaGraphService
 		}
 	}
 
-	/** Persists the set of removed (hidden) built-in area IDs to config. */
 	private void persistRemovedAreaIds(Set<String> ids)
 	{
 		String json = GSON.toJson(new ArrayList<>(ids));
@@ -498,27 +506,22 @@ public class AreaGraphService
 		return true;
 	}
 
-	/**
-	 * Replaces the set of unlocked area IDs (e.g. when loading saved state). Clears locked-tiles cache.
-	 *
-	 * @param ids new set of area IDs that are unlocked; null treated as empty
-	 */
 	public void setUnlockedAreaIds(Set<String> ids)
 	{
 		unlockedAreaIds.clear();
 		if (ids != null)
+		{
 			unlockedAreaIds.addAll(ids);
+		}
 		tilesInLockedAreasCache.clear();
 	}
 
-	/** Adds an area to the unlocked set (e.g. after player spends points to unlock). Clears locked-tiles cache. */
 	public void addUnlocked(String areaId)
 	{
 		unlockedAreaIds.add(areaId);
 		tilesInLockedAreasCache.clear();
 	}
 
-	/** Returns an unmodifiable set of area IDs that the player has unlocked. */
 	public Set<String> getUnlockedAreaIds()
 	{
 		return Collections.unmodifiableSet(unlockedAreaIds);
@@ -585,7 +588,6 @@ public class AreaGraphService
 		return false;
 	}
 
-	/** Ray-casting point-in-polygon test for a WorldPoint. Polygon vertices are [x, y, plane]; plane must match. */
 	private boolean pointInPolygon(WorldPoint p, List<int[]> polygon)
 	{
 		if (polygon == null || polygon.size() < 3) return false;
@@ -735,7 +737,6 @@ public class AreaGraphService
 		return getUnlockableNeighbors(null);
 	}
 
-	/** Returns the point cost to unlock this area (from area's unlockCost). Returns 0 if area not found. */
 	public int getCost(String areaId)
 	{
 		Area area = getArea(areaId);
@@ -750,7 +751,6 @@ public class AreaGraphService
 		return area.getPointsToComplete() != null ? area.getPointsToComplete() : area.getUnlockCost();
 	}
 
-	/** Returns the area with the given ID, or null if not found. */
 	public Area getArea(String areaId)
 	{
 		for (Area a : areas)
@@ -760,7 +760,6 @@ public class AreaGraphService
 		return null;
 	}
 
-	/** Returns an unmodifiable list of all areas (built-in minus removed, plus custom). */
 	public List<Area> getAreas()
 	{
 		return Collections.unmodifiableList(areas);
@@ -868,11 +867,12 @@ public class AreaGraphService
 		return result;
 	}
 
-	/** Canonical key for an edge (x1,y1)-(x2,y2) so both orderings map to the same key. */
 	private static String edgeKey(int x1, int y1, int x2, int y2)
 	{
 		if (x1 < x2 || (x1 == x2 && y1 <= y2))
+		{
 			return x1 + "," + y1 + "," + x2 + "," + y2;
+		}
 		return x2 + "," + y2 + "," + x1 + "," + y1;
 	}
 }

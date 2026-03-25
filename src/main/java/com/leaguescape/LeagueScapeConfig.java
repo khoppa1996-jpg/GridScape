@@ -323,132 +323,159 @@ public interface LeagueScapeConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "taskDifficultyMultiplier",
+		name = "Task difficulty multiplier",
+		description = "Scales task grid difficulty (0.5 = easier, 1 = normal, up to 2 = harder).",
+		position = 1,
+		section = taskSection
+	)
+	default double taskDifficultyMultiplier()
+	{
+		return 1.0;
+	}
+
+	@ConfigItem(
 		keyName = "taskTier1Points",
 		name = "Tier 1 points",
 		description = "Points awarded for claiming a tier 1 task (first ring)",
-		position = 1,
+		position = 2,
 		section = taskSection
 	)
 	default int taskTier1Points()
 	{
-		return 1;
+		return 5;
 	}
 
 	@ConfigItem(
 		keyName = "taskTier2Points",
 		name = "Tier 2 points",
 		description = "Points awarded for claiming a tier 2 task",
-		position = 2,
+		position = 3,
 		section = taskSection
 	)
 	default int taskTier2Points()
 	{
-		return 2;
+		return 10;
 	}
 
 	@ConfigItem(
 		keyName = "taskTier3Points",
 		name = "Tier 3 points",
 		description = "Points awarded for claiming a tier 3 task",
-		position = 3,
+		position = 4,
 		section = taskSection
 	)
 	default int taskTier3Points()
 	{
-		return 3;
+		return 20;
 	}
 
 	@ConfigItem(
 		keyName = "taskTier4Points",
 		name = "Tier 4 points",
 		description = "Points awarded for claiming a tier 4 task",
-		position = 4,
+		position = 5,
 		section = taskSection
 	)
 	default int taskTier4Points()
 	{
-		return 4;
+		return 50;
 	}
 
 	@ConfigItem(
 		keyName = "taskTier5Points",
 		name = "Tier 5 points",
 		description = "Points awarded for claiming a tier 5 task",
-		position = 5,
+		position = 6,
 		section = taskSection
 	)
 	default int taskTier5Points()
 	{
-		return 5;
+		return 100;
 	}
 
-	// World Unlock tile cost multipliers (cost = tier points × multiplier when unlock mode is World Unlock)
+	// World Unlock: per tile-tier (1–5) and unlock type. Tile tier > 5 uses tier 5 multipliers.
 
-	@ConfigItem(
-		keyName = "worldUnlockSkillMultiplier",
-		name = "Skill unlock multiplier",
-		description = "Multiplier for skill unlock tile cost when in World Unlock mode. Cost = tier × tier points × this multiplier.",
-		position = 0,
-		section = worldUnlockSection
-	)
-	default int worldUnlockSkillMultiplier()
-	{
-		return 3;
-	}
+	@ConfigItem(keyName = "worldUnlockTier1SkillMultiplier", name = "Tier 1 skill multiplier", description = "Skill tile cost multiplier for tier 1 unlock tiles.", position = 0, section = worldUnlockSection)
+	default int worldUnlockTier1SkillMultiplier() { return 2; }
 
-	@ConfigItem(
-		keyName = "worldUnlockAreaMultiplier",
-		name = "Area unlock multiplier",
-		description = "Multiplier for area unlock tile cost when in World Unlock mode. Cost = tier × tier points × this multiplier.",
-		position = 1,
-		section = worldUnlockSection
-	)
-	default int worldUnlockAreaMultiplier()
-	{
-		return 7;
-	}
+	@ConfigItem(keyName = "worldUnlockTier1AreaMultiplier", name = "Tier 1 area multiplier", description = "Area tile cost multiplier for tier 1 unlock tiles.", position = 1, section = worldUnlockSection)
+	default int worldUnlockTier1AreaMultiplier() { return 7; }
 
-	@ConfigItem(
-		keyName = "worldUnlockBossMultiplier",
-		name = "Boss unlock multiplier",
-		description = "Multiplier for boss unlock tile cost when in World Unlock mode. Cost = tier × tier points × this multiplier.",
-		position = 2,
-		section = worldUnlockSection
-	)
-	default int worldUnlockBossMultiplier()
-	{
-		return 4;
-	}
+	@ConfigItem(keyName = "worldUnlockTier1BossMultiplier", name = "Tier 1 boss multiplier", description = "Boss tile cost multiplier for tier 1 unlock tiles.", position = 2, section = worldUnlockSection)
+	default int worldUnlockTier1BossMultiplier() { return 5; }
 
-	@ConfigItem(
-		keyName = "worldUnlockQuestMultiplier",
-		name = "Quest unlock multiplier",
-		description = "Multiplier for quest unlock tile cost when in World Unlock mode. Cost = tier × tier points × this multiplier.",
-		position = 3,
-		section = worldUnlockSection
-	)
-	default int worldUnlockQuestMultiplier()
-	{
-		return 5;
-	}
+	@ConfigItem(keyName = "worldUnlockTier1QuestMultiplier", name = "Tier 1 quest multiplier", description = "Quest tile cost multiplier for tier 1 unlock tiles.", position = 3, section = worldUnlockSection)
+	default int worldUnlockTier1QuestMultiplier() { return 2; }
 
-	@ConfigItem(
-		keyName = "worldUnlockAchievementDiaryMultiplier",
-		name = "Achievement diary unlock multiplier",
-		description = "Multiplier for achievement diary unlock tile cost when in World Unlock mode. Cost = tier × tier points × this multiplier.",
-		position = 4,
-		section = worldUnlockSection
-	)
-	default int worldUnlockAchievementDiaryMultiplier()
-	{
-		return 3;
-	}
+	@ConfigItem(keyName = "worldUnlockTier1AchievementDiaryMultiplier", name = "Tier 1 achievement diary multiplier", description = "Achievement diary tile cost multiplier for tier 1 unlock tiles.", position = 4, section = worldUnlockSection)
+	default int worldUnlockTier1AchievementDiaryMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier2SkillMultiplier", name = "Tier 2 skill multiplier", description = "Skill tile cost multiplier for tier 2 unlock tiles.", position = 5, section = worldUnlockSection)
+	default int worldUnlockTier2SkillMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier2AreaMultiplier", name = "Tier 2 area multiplier", description = "Area tile cost multiplier for tier 2 unlock tiles.", position = 6, section = worldUnlockSection)
+	default int worldUnlockTier2AreaMultiplier() { return 7; }
+
+	@ConfigItem(keyName = "worldUnlockTier2BossMultiplier", name = "Tier 2 boss multiplier", description = "Boss tile cost multiplier for tier 2 unlock tiles.", position = 7, section = worldUnlockSection)
+	default int worldUnlockTier2BossMultiplier() { return 5; }
+
+	@ConfigItem(keyName = "worldUnlockTier2QuestMultiplier", name = "Tier 2 quest multiplier", description = "Quest tile cost multiplier for tier 2 unlock tiles.", position = 8, section = worldUnlockSection)
+	default int worldUnlockTier2QuestMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier2AchievementDiaryMultiplier", name = "Tier 2 achievement diary multiplier", description = "Achievement diary tile cost multiplier for tier 2 unlock tiles.", position = 9, section = worldUnlockSection)
+	default int worldUnlockTier2AchievementDiaryMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier3SkillMultiplier", name = "Tier 3 skill multiplier", description = "Skill tile cost multiplier for tier 3 unlock tiles.", position = 10, section = worldUnlockSection)
+	default int worldUnlockTier3SkillMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier3AreaMultiplier", name = "Tier 3 area multiplier", description = "Area tile cost multiplier for tier 3 unlock tiles.", position = 11, section = worldUnlockSection)
+	default int worldUnlockTier3AreaMultiplier() { return 7; }
+
+	@ConfigItem(keyName = "worldUnlockTier3BossMultiplier", name = "Tier 3 boss multiplier", description = "Boss tile cost multiplier for tier 3 unlock tiles.", position = 12, section = worldUnlockSection)
+	default int worldUnlockTier3BossMultiplier() { return 5; }
+
+	@ConfigItem(keyName = "worldUnlockTier3QuestMultiplier", name = "Tier 3 quest multiplier", description = "Quest tile cost multiplier for tier 3 unlock tiles.", position = 13, section = worldUnlockSection)
+	default int worldUnlockTier3QuestMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier3AchievementDiaryMultiplier", name = "Tier 3 achievement diary multiplier", description = "Achievement diary tile cost multiplier for tier 3 unlock tiles.", position = 14, section = worldUnlockSection)
+	default int worldUnlockTier3AchievementDiaryMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier4SkillMultiplier", name = "Tier 4 skill multiplier", description = "Skill tile cost multiplier for tier 4 unlock tiles.", position = 15, section = worldUnlockSection)
+	default int worldUnlockTier4SkillMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier4AreaMultiplier", name = "Tier 4 area multiplier", description = "Area tile cost multiplier for tier 4 unlock tiles.", position = 16, section = worldUnlockSection)
+	default int worldUnlockTier4AreaMultiplier() { return 7; }
+
+	@ConfigItem(keyName = "worldUnlockTier4BossMultiplier", name = "Tier 4 boss multiplier", description = "Boss tile cost multiplier for tier 4 unlock tiles.", position = 17, section = worldUnlockSection)
+	default int worldUnlockTier4BossMultiplier() { return 5; }
+
+	@ConfigItem(keyName = "worldUnlockTier4QuestMultiplier", name = "Tier 4 quest multiplier", description = "Quest tile cost multiplier for tier 4 unlock tiles.", position = 18, section = worldUnlockSection)
+	default int worldUnlockTier4QuestMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier4AchievementDiaryMultiplier", name = "Tier 4 achievement diary multiplier", description = "Achievement diary tile cost multiplier for tier 4 unlock tiles.", position = 19, section = worldUnlockSection)
+	default int worldUnlockTier4AchievementDiaryMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier5SkillMultiplier", name = "Tier 5 skill multiplier", description = "Skill tile cost multiplier for tier 5+ unlock tiles.", position = 20, section = worldUnlockSection)
+	default int worldUnlockTier5SkillMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier5AreaMultiplier", name = "Tier 5 area multiplier", description = "Area tile cost multiplier for tier 5+ unlock tiles.", position = 21, section = worldUnlockSection)
+	default int worldUnlockTier5AreaMultiplier() { return 7; }
+
+	@ConfigItem(keyName = "worldUnlockTier5BossMultiplier", name = "Tier 5 boss multiplier", description = "Boss tile cost multiplier for tier 5+ unlock tiles.", position = 22, section = worldUnlockSection)
+	default int worldUnlockTier5BossMultiplier() { return 5; }
+
+	@ConfigItem(keyName = "worldUnlockTier5QuestMultiplier", name = "Tier 5 quest multiplier", description = "Quest tile cost multiplier for tier 5+ unlock tiles.", position = 23, section = worldUnlockSection)
+	default int worldUnlockTier5QuestMultiplier() { return 2; }
+
+	@ConfigItem(keyName = "worldUnlockTier5AchievementDiaryMultiplier", name = "Tier 5 achievement diary multiplier", description = "Achievement diary tile cost multiplier for tier 5+ unlock tiles.", position = 24, section = worldUnlockSection)
+	default int worldUnlockTier5AchievementDiaryMultiplier() { return 2; }
 
 	@ConfigItem(
 		keyName = "tasksFilePath",
 		name = "Tasks file path",
 		description = "Optional path to a tasks.json file. If empty, the built-in default tasks are used. File format: defaultTasks array with displayName, taskType, difficulty (1–5); optional areas map for per-area overrides.",
-		position = 6,
+		position = 7,
 		section = taskSection
 	)
 	default String tasksFilePath()

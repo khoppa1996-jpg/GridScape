@@ -34,8 +34,6 @@ public class TaskDefinition
 	/**
 	 * Returns the list of area IDs this task is restricted to. Used to filter which area grids show this task
 	 * and to determine if the task is shown as a "mystery" (when not all required areas are unlocked).
-	 * The loader normalizes JSON "area" (comma-separated string or array) into {@link #area} or {@link #areas},
-	 * so this method is the single source of truth for area restriction.
 	 *
 	 * @return non-empty list of area IDs if task is area-specific; empty list if task appears in any area
 	 */

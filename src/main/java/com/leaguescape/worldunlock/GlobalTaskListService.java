@@ -1,6 +1,10 @@
 package com.leaguescape.worldunlock;
 
 import com.leaguescape.LeagueScapeConfig;
+import com.leaguescape.constants.TaskTypes;
+import com.leaguescape.grid.GridPos;
+import com.leaguescape.grid.Spiral;
+import com.leaguescape.grid.RevealLogic;
 import com.leaguescape.points.PointsService;
 import com.leaguescape.task.TaskDefinition;
 import com.leaguescape.task.TaskGridService;
@@ -128,6 +132,41 @@ public class GlobalTaskListService
 		return false;
 	}
 
+	/** True if the task has a non-empty required-area list. */
+	private static boolean isAreaTask(TaskDefinition t)
+	{
+		List<String> req = t.getRequiredAreaIds();
+		return req != null && !req.isEmpty();
+	}
+
+	/**
+	 * Collection Log with no {@code bossId}: never gate on boss tiles parsed from requirement text (area-only and global).
+	 */
+	private static boolean isCollectionLogWithoutBossId(TaskDefinition task)
+	{
+		return task != null && TaskTypes.isCollectionLogType(task.getTaskType())
+			&& (task.getBossId() == null || task.getBossId().trim().isEmpty());
+	}
+
+	/**
+	 * Collection Log with no boss id and no real area (empty or only "undefined"): skip generic quest-unlock requirement
+	 * gating so filler-style tasks behave like other global tasks without those prerequisites.
+	 */
+	private static boolean isCollectionLogWithoutBossOrArea(TaskDefinition task)
+	{
+		if (!isCollectionLogWithoutBossId(task))
+			return false;
+		List<String> req = task.getRequiredAreaIds();
+		if (req != null && !req.isEmpty())
+		{
+			boolean onlyPlaceholder = req.stream().allMatch(a ->
+				a == null || a.trim().isEmpty() || "undefined".equalsIgnoreCase(a.trim()));
+			if (!onlyPlaceholder)
+				return false;
+		}
+		return true;
+	}
+
 	/**
 	 * Returns the rollable task list for the Global Task panel.
 	 * Tasks are filtered by World Unlock panel state:
@@ -136,6 +175,7 @@ public class GlobalTaskListService
 	 * - Quest tasks: require a quest unlock that satisfies the task's requirements
 	 * - Diary tasks: require at least one achievement diary unlock
 	 * - Boss tasks: require at least one boss unlock
+	 * - Collection Log: quest gate waived only for no-area entries without bossId; boss tile from requirements only when bossId is set
 	 * - No-area, no-type tasks: always allowed
 	 */
 	public List<TaskDefinition> getGlobalTasks()
@@ -243,7 +283,7 @@ public class GlobalTaskListService
 	{
 		if (t == null || t.getTaskType() == null) return false;
 		String type = t.getTaskType();
-		return com.leaguescape.constants.TaskTypes.QUEST.equalsIgnoreCase(type) || com.leaguescape.constants.TaskTypes.ACHIEVEMENT_DIARY.equalsIgnoreCase(type) || com.leaguescape.constants.TaskTypes.DIARY.equalsIgnoreCase(type);
+		return com.leaguescape.constants.TaskTypes.QUEST.equalsIgnoreCase(type) || com.leaguescape.constants.TaskTypes.isAchievementDiaryType(type);
 	}
 
 	/**
@@ -286,6 +326,7 @@ public class GlobalTaskListService
 			String req = task.getRequirements();
 			if (req != null && !req.trim().isEmpty())
 			{
+				Set<String> unlockedIds = worldUnlockService.getUnlockedIds();
 				for (String part : req.split(","))
 				{
 					String token = part.trim();
@@ -295,8 +336,7 @@ public class GlobalTaskListService
 					{
 						int minLevel = Integer.parseInt(bracket.group(1));
 						String skillTileId = worldUnlockService.getSkillTileIdForLevel(taskType.trim(), minLevel);
-						if (skillTileId != null && !worldUnlockService.getUnlockedIds().contains(skillTileId)
-							&& !u.unlockedOrRevealedTileIds.contains(skillTileId))
+						if (skillTileId != null && !unlockedIds.contains(skillTileId))
 							return false;
 						break; // one bracket requirement satisfied
 					}
@@ -307,7 +347,11 @@ public class GlobalTaskListService
 		// 3. Quest: if task has quest requirements or is Quest type, need quest unlock
 		// (except for "Defeat ..." style prerequisite-task requirements)
 		boolean isTaskPrereqReq = isTaskPrerequisiteRequirement(task.getRequirements());
-		if (com.leaguescape.constants.TaskTypes.QUEST.equalsIgnoreCase(taskType) || (hasRequirements && !isTaskPrereqReq))
+		boolean isSkillTask = taskType != null && containsSkillNameIgnoreCase(u.allSkillNames, taskType);
+		boolean hasSkillBracketReq = isSkillTask && hasRequirements && task.getRequirements().matches(".*\\d+\\s*-\\s*\\d+.*");
+		boolean questTypeOrReqNeedsQuestUnlock = com.leaguescape.constants.TaskTypes.QUEST.equalsIgnoreCase(taskType)
+			|| (hasRequirements && !isTaskPrereqReq && !hasSkillBracketReq && !isCollectionLogWithoutBossOrArea(task));
+		if (questTypeOrReqNeedsQuestUnlock)
 		{
 			if (u.questRequirements.isEmpty())
 				return false;
@@ -325,9 +369,9 @@ public class GlobalTaskListService
 			}
 		}
 
-		// 4. Achievement Diary: task's area(s) must be unlocked (step 1) and the diary tier for that area must be unlocked.
-		// easy=1, medium=2, hard=3, elite=4. Only then can the task populate on the Global task grid.
-		if (com.leaguescape.constants.TaskTypes.ACHIEVEMENT_DIARY.equalsIgnoreCase(taskType) || com.leaguescape.constants.TaskTypes.DIARY.equalsIgnoreCase(taskType))
+		// 4. Achievement Diary: the appropriate area(s) for that diary must be unlocked AND the diary tier must be unlocked.
+		// Uses area_mapping.json: diary key -> area ids. At least one of those areas must be unlocked, and the tier key (e.g. varrock_1) must be unlocked.
+		if (com.leaguescape.constants.TaskTypes.isAchievementDiaryType(taskType))
 		{
 			List<String> diaryAreas = task.getRequiredAreaIds();
 			if (diaryAreas == null || diaryAreas.isEmpty())
@@ -340,13 +384,22 @@ public class GlobalTaskListService
 			String tierKey = diaryKey + "_" + difficulty;
 			if (!u.unlockedDiaryTierKeys.contains(tierKey))
 				return false;
+			// Require at least one area that belongs to this diary to be unlocked (area id -> diary key from area_mapping + tiles).
+			boolean anyAreaUnlocked = u.areas.stream()
+				.anyMatch(unlockedAreaId -> diaryKey.equals(worldUnlockService.getDiaryKeyForAreaId(unlockedAreaId)));
+			if (!anyAreaUnlocked)
+				return false;
 		}
 
-		// 5. Collection Log: collection log tasks need at least one boss unlock
-		if ("Collection Log".equalsIgnoreCase(taskType))
+		// 5. Collection Log: require that boss tile only when bossId is set (section 1 already gated real areas)
+		if (taskType != null && TaskTypes.isCollectionLogType(taskType))
 		{
-			if (u.bossRequirements.isEmpty())
-				return false;
+			if (task.getBossId() != null && !task.getBossId().trim().isEmpty())
+			{
+				String bossTileId = worldUnlockService.resolvePrerequisiteToTileId(task.getBossId().trim());
+				if (bossTileId != null && !worldUnlockService.getUnlockedIds().contains(bossTileId))
+					return false;
+			}
 		}
 
 		// 5b. Combat (achievement) tasks whose prerequisite is a boss require that boss to be unlocked
@@ -398,10 +451,9 @@ public class GlobalTaskListService
 				}
 			}
 
-			// 7. Requirements: "[level] [skill]" or "[skill] [bracket]" => that skill unlock must be unlocked or revealed.
-			// Use unlockedIds so that "unlocked not claimed" is enough for tasks to populate (no need to claim the skill tile).
+			// 7. Requirements: "[level] [skill]" or "[skill] [bracket]" => that skill unlock must be unlocked.
+			// Revealed-but-unlocked skill tiles should not satisfy task population.
 			Set<String> unlockedIds = worldUnlockService.getUnlockedIds();
-			Set<String> unlockedOrRevealed = u.unlockedOrRevealedTileIds;
 			boolean anyGated = false;
 			boolean anySatisfied = false;
 			for (String part : task.getRequirements().split(","))
@@ -414,7 +466,7 @@ public class GlobalTaskListService
 					int level = Integer.parseInt(levelSkill.group(1));
 					String skillName = levelSkill.group(2).trim();
 					String skillTileId = worldUnlockService.getSkillTileIdForLevel(skillName, level);
-					if (skillTileId != null && !unlockedIds.contains(skillTileId) && !unlockedOrRevealed.contains(skillTileId))
+					if (skillTileId != null && !unlockedIds.contains(skillTileId))
 						return false;
 					continue;
 				}
@@ -424,7 +476,7 @@ public class GlobalTaskListService
 				{
 					int minLevel = Integer.parseInt(bracketOnly.group(1));
 					String skillTileId = worldUnlockService.getSkillTileIdForLevel(taskType, minLevel);
-					if (skillTileId != null && !unlockedIds.contains(skillTileId) && !unlockedOrRevealed.contains(skillTileId))
+					if (skillTileId != null && !unlockedIds.contains(skillTileId))
 						return false;
 					continue;
 				}
@@ -434,8 +486,8 @@ public class GlobalTaskListService
 					WorldUnlockTile tile = worldUnlockService.getTileById(tileId);
 					if (tile != null && "skill".equals(tile.getType()))
 					{
-						// [skill] [bracket] requirement: populate when skill tile is unlocked (claimed not required)
-						if (!unlockedIds.contains(tileId) && !unlockedOrRevealed.contains(tileId))
+						// [skill] [bracket] requirement: populate only when the skill tile itself is unlocked.
+						if (!unlockedIds.contains(tileId))
 							return false;
 						continue;
 					}
@@ -446,6 +498,9 @@ public class GlobalTaskListService
 							return false;
 						continue;
 					}
+					// Collection Log without bossId: do not gate on boss tiles from requirement text (area-only or global)
+					if (tile != null && "boss".equals(tile.getType()) && isCollectionLogWithoutBossId(task))
+						continue;
 					anyGated = true;
 					if (unlockedIds.contains(tileId))
 						anySatisfied = true;
@@ -655,14 +710,17 @@ public class GlobalTaskListService
 			.filter(t -> "area".equals(t.getType()) && worldUnlockService.getUnlockedIds().contains(t.getId()))
 			.map(t -> t.getId())
 			.collect(Collectors.toSet());
-		// Prioritize: unlocked area tasks first, then skill tasks (bracket unlocked), then global (no area), then by difficulty, then taskKey
+		// Prioritize: skill-bracket tasks first when their bracket is unlocked/revealed, then area tasks, then global tasks.
 		availableForNew.sort((a, b) -> {
-			boolean aUnlockedArea = isUnlockedAreaTask(a, unlockedAreaIds);
-			boolean bUnlockedArea = isUnlockedAreaTask(b, unlockedAreaIds);
-			if (aUnlockedArea != bUnlockedArea) return aUnlockedArea ? -1 : 1;
 			boolean aSkill = isUnlockedSkillBracketTask(a);
 			boolean bSkill = isUnlockedSkillBracketTask(b);
 			if (aSkill != bSkill) return aSkill ? -1 : 1;
+			boolean aUnlockedArea = isUnlockedAreaTask(a, unlockedAreaIds);
+			boolean bUnlockedArea = isUnlockedAreaTask(b, unlockedAreaIds);
+			if (aUnlockedArea != bUnlockedArea) return aUnlockedArea ? -1 : 1;
+			boolean aArea = isAreaTask(a);
+			boolean bArea = isAreaTask(b);
+			if (aArea != bArea) return aArea ? -1 : 1;
 			int da = Math.max(1, Math.min(MAX_TIER, a.getDifficulty()));
 			int db = Math.max(1, Math.min(MAX_TIER, b.getDifficulty()));
 			if (da != db) return Integer.compare(da, db);
@@ -673,16 +731,18 @@ public class GlobalTaskListService
 		int idx = 0;
 		while (idx < availableForNew.size())
 		{
-			boolean u0 = isUnlockedAreaTask(availableForNew.get(idx), unlockedAreaIds);
 			boolean s0 = isUnlockedSkillBracketTask(availableForNew.get(idx));
+			boolean u0 = isUnlockedAreaTask(availableForNew.get(idx), unlockedAreaIds);
+			boolean a0 = isAreaTask(availableForNew.get(idx));
 			int d0 = Math.max(1, Math.min(MAX_TIER, availableForNew.get(idx).getDifficulty()));
 			int j = idx + 1;
 			while (j < availableForNew.size())
 			{
-				boolean u = isUnlockedAreaTask(availableForNew.get(j), unlockedAreaIds);
 				boolean s = isUnlockedSkillBracketTask(availableForNew.get(j));
+				boolean u = isUnlockedAreaTask(availableForNew.get(j), unlockedAreaIds);
+				boolean a = isAreaTask(availableForNew.get(j));
 				int d = Math.max(1, Math.min(MAX_TIER, availableForNew.get(j).getDifficulty()));
-				if (u != u0 || s != s0 || d != d0) break;
+				if (s != s0 || u != u0 || a != a0 || d != d0) break;
 				j++;
 			}
 			if (j > idx + 1)
@@ -785,21 +845,9 @@ public class GlobalTaskListService
 		return false;
 	}
 
-	private static int[] parsePos(String pos)
-	{
-		String[] p = pos.split(",");
-		if (p.length != 2) return null;
-		try
-		{
-			return new int[]{ Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()) };
-		}
-		catch (NumberFormatException e) { return null; }
-	}
+	private static int[] parsePos(String pos) { return GridPos.parse(pos); }
 
-	private static int chebyshevDist(int r1, int c1, int r2, int c2)
-	{
-		return Math.max(Math.abs(r1 - r2), Math.abs(c1 - c2));
-	}
+	private static int chebyshevDist(int r1, int c1, int r2, int c2) { return GridPos.chebyshevDist(r1, c1, r2, c2); }
 
 	/** Keys must be composite "taskKey|||pos"; reject position-as-key entries (e.g. "1,0") that would show coords as task name. */
 	private static boolean isPositionLike(String keyOrPos)
@@ -813,6 +861,7 @@ public class GlobalTaskListService
 	{
 		TaskDefinition p = new TaskDefinition();
 		p.setDisplayName("Unknown");
+		p.setTaskType(TaskTypes.OTHER);
 		p.setDifficulty(1);
 		return p;
 	}
@@ -820,8 +869,7 @@ public class GlobalTaskListService
 	/** Canonical position string "r,c" (no spaces) so load/store and comparisons match. */
 	private static String normalizePos(String pos)
 	{
-		int[] rc = parsePos(pos);
-		return rc != null ? (rc[0] + "," + rc[1]) : (pos != null ? pos.trim() : "");
+		return GridPos.normalize(pos);
 	}
 
 	/**
@@ -962,16 +1010,7 @@ public class GlobalTaskListService
 	 */
 	private boolean isRevealedGlobal(TaskTile tile, Set<String> claimedPositions)
 	{
-		int row = tile.getRow(), col = tile.getCol();
-		int[][] deltas = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-		for (int[] d : deltas)
-		{
-			int nr = row + d[0], nc = col + d[1];
-			String neighborId = TaskTile.idFor(nr, nc);
-			if (claimedPositions.contains(neighborId))
-				return true;
-		}
-		return false;
+		return RevealLogic.revealedByClaimedTaskIds(tile.getRow(), tile.getCol(), claimedPositions);
 	}
 
 	/** Returns claimed grid positions: center (if claimed) + explicitly stored claimed positions. */
@@ -1035,9 +1074,74 @@ public class GlobalTaskListService
 			if (starter != null && worldUnlockService.getTileCost(starter) == 0
 				&& (starter.getPrerequisites() == null || starter.getPrerequisites().isEmpty()))
 			{
-				boolean unlocked = worldUnlockService.unlock(starter.getId(), worldUnlockService.getTileCost(starter));
-				log.debug("[GlobalTask] claimCenter: auto-unlocked starter {} = {}", starter.getId(), unlocked);
+				String starterId = starter.getId();
+				boolean wasNewUnlock = starterId != null && !worldUnlockService.getUnlockedIds().contains(starterId);
+				boolean unlocked = worldUnlockService.unlock(starterId, worldUnlockService.getTileCost(starter));
+				log.debug("[GlobalTask] claimCenter: auto-unlocked starter {} = {}", starterId, unlocked);
+				if (unlocked && wasNewUnlock)
+				{
+					resetRepeatableSkillTaskProgressAfterAreaUnlock();
+				}
 			}
+		}
+	}
+
+	/**
+	 * World Unlock: when a new area is unlocked, returns fully claimed whitelisted no-area skill tasks
+	 * (not {@code onceOnly}) to the rollable pool: clears completion/claim state for the task key and
+	 * replaces its grid cell(s) with the same placeholder task used for unknown assignments (display name
+	 * Unknown, task key {@code unknown}) so claimed positions
+	 * stay claimed (reveal map unchanged) while the real task can roll onto newly revealed cells.
+	 * Skips area-bound tasks, {@code onceOnly} tasks, completed-but-unclaimed tasks, and tasks on the grid
+	 * that were never claimed (still in progress).
+	 */
+	public void resetRepeatableSkillTaskProgressAfterAreaUnlock()
+	{
+		List<TaskDefinition> defs = taskGridService.getEffectiveDefaultTasks();
+		if (defs == null || defs.isEmpty())
+		{
+			return;
+		}
+
+		String placeholderKey = taskKey(placeholderTile());
+
+		Set<String> completed = loadSet(KEY_GLOBAL_COMPLETED);
+		Set<String> claimed = loadSet(KEY_GLOBAL_CLAIMED);
+		Set<String> claimedPos = loadClaimedPositions();
+		Map<String, String> gridState = loadGridState();
+		Set<String> seenKeys = new HashSet<>();
+		boolean changed = false;
+
+		for (TaskDefinition t : defs)
+		{
+			if (t == null || !TaskTypes.isRepeatableWorldUnlockSkillType(t.getTaskType())) continue;
+			if (Boolean.TRUE.equals(t.getOnceOnly())) continue;
+			List<String> reqAreas = t.getRequiredAreaIds();
+			if (reqAreas != null && !reqAreas.isEmpty()) continue;
+			String key = taskKey(t);
+			if (key.isEmpty() || !seenKeys.add(key)) continue;
+			if (completed.contains(key) && !claimed.contains(key)) continue;
+			if (!claimed.contains(key)) continue;
+
+			if (completed.remove(key))
+				changed = true;
+			if (claimed.remove(key))
+				changed = true;
+			for (String pos : new ArrayList<>(getPositionsForTaskKey(gridState, key)))
+			{
+				String norm = normalizePos(pos);
+				String prev = gridState.put(norm, placeholderKey);
+				if (prev == null || !placeholderKey.equals(prev))
+					changed = true;
+			}
+		}
+
+		if (changed)
+		{
+			saveSet(KEY_GLOBAL_COMPLETED, completed);
+			saveSet(KEY_GLOBAL_CLAIMED, claimed);
+			saveClaimedPositions(claimedPos);
+			saveGridState(gridState);
 		}
 	}
 
@@ -1168,11 +1272,6 @@ public class GlobalTaskListService
 
 	private static List<int[]> spiralOrderForRing(int tier)
 	{
-		List<int[]> out = new ArrayList<>(8 * tier);
-		for (int c = 1 - tier; c <= tier; c++) out.add(new int[]{ tier, c });
-		for (int r = tier - 1; r >= -tier; r--) out.add(new int[]{ r, tier });
-		for (int c = tier - 1; c >= -tier; c--) out.add(new int[]{ -tier, c });
-		for (int r = -tier + 1; r <= tier; r++) out.add(new int[]{ r, -tier });
-		return out;
+		return Spiral.ring(tier);
 	}
 }

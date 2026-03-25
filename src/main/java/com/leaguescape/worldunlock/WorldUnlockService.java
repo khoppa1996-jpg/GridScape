@@ -4,11 +4,14 @@ import com.google.gson.Gson;
 import com.leaguescape.LeagueScapeConfig;
 import com.leaguescape.area.AreaGraphService;
 import com.leaguescape.constants.WorldUnlockTileType;
+import com.leaguescape.grid.GridPos;
+import com.leaguescape.grid.RevealLogic;
 import com.leaguescape.util.ConfigParsing;
 import com.leaguescape.util.LeagueScapeConfigConstants;
 import com.leaguescape.util.ResourceJsonLoader;
 import com.leaguescape.util.ResourcePaths;
 import com.leaguescape.data.Area;
+import com.leaguescape.data.AreaMappingData;
 import com.leaguescape.points.PointsService;
 import com.leaguescape.task.TaskDefinition;
 import com.leaguescape.task.TaskGridService;
@@ -45,6 +48,18 @@ public class WorldUnlockService
 	/** Grid state entry format: pos##tileId (same idea as Global Task grid). */
 	private static final String GRID_STATE_SEP = "##";
 	private static final String POS_ENTRY_SEP = "||";
+	private static final String PLUGIN_CONFIG_GROUP = LeagueScapeConfigConstants.CONFIG_GROUP;
+	/** Matches {@code LeagueScapeConfig} per-tier key middle part: worldUnlockTier{N}<suffix>Multiplier */
+	private static final String[] WORLD_UNLOCK_TYPE_SUFFIX = {
+		"Skill", "Area", "Boss", "Quest", "AchievementDiary"
+	};
+	private static final String[] WORLD_UNLOCK_LEGACY_KEYS = {
+		"worldUnlockSkillMultiplier",
+		"worldUnlockAreaMultiplier",
+		"worldUnlockBossMultiplier",
+		"worldUnlockQuestMultiplier",
+		"worldUnlockAchievementDiaryMultiplier"
+	};
 
 	private final ConfigManager configManager;
 	private final LeagueScapeConfig config;
@@ -56,8 +71,10 @@ public class WorldUnlockService
 	private final Set<String> unlockedIds = new HashSet<>();
 	private final Set<String> claimedIds = new HashSet<>();
 	private boolean loaded = false;
-	/** Lazy-built: area id -> achievement diary key (e.g. varrock -> varrock, al_kharid -> desert). */
+	/** Lazy-built: area id -> achievement diary key (e.g. varrock -> varrock, al_kharid -> desert). Uses area_mapping.json when available. */
 	private Map<String, String> areaIdToDiaryKey = null;
+	/** Lazy-built from area_mapping.json: diary key (normalized) -> list of area ids in that diary. Empty if mapping not loaded. */
+	private Map<String, List<String>> diaryKeyToAreaIds = null;
 
 	@Inject
 	public WorldUnlockService(ConfigManager configManager, LeagueScapeConfig config, PointsService pointsService,
@@ -79,6 +96,8 @@ public class WorldUnlockService
 		}
 		tiles.clear();
 		unlockedIds.clear();
+		areaIdToDiaryKey = null;
+		diaryKeyToAreaIds = null;
 		Gson gson = new Gson();
 		WorldUnlocksData data = ResourceJsonLoader.load(getClass(), ResourcePaths.WORLD_UNLOCKS_JSON, WorldUnlocksData.class, gson, log);
 		if (data != null && data.getUnlocks() != null)
@@ -101,36 +120,9 @@ public class WorldUnlockService
 		configManager.setConfiguration(STATE_GROUP, KEY_WORLD_UNLOCK_CLAIMED_IDS, ConfigParsing.joinComma(claimedIds));
 	}
 
-	private static int[] parsePos(String pos)
-	{
-		if (pos == null) return null;
-		String[] p = pos.split(",");
-		if (p.length != 2) return null;
-		try
-		{
-			return new int[]{ Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()) };
-		}
-		catch (NumberFormatException e) { return null; }
-	}
-
-	private static String normalizePos(String pos)
-	{
-		int[] rc = parsePos(pos);
-		return rc != null ? (rc[0] + "," + rc[1]) : (pos != null ? pos.trim() : "");
-	}
-
-	private static List<String> getNeighborPositions(String pos)
-	{
-		int[] rc = parsePos(pos);
-		if (rc == null) return new ArrayList<>();
-		int r = rc[0], c = rc[1];
-		List<String> out = new ArrayList<>(4);
-		out.add((r + 1) + "," + c);
-		out.add((r - 1) + "," + c);
-		out.add(r + "," + (c + 1));
-		out.add(r + "," + (c - 1));
-		return out;
-	}
+	private static int[] parsePos(String pos) { return GridPos.parse(pos); }
+	private static String normalizePos(String pos) { return GridPos.normalize(pos); }
+	private static List<String> getNeighborPositions(String pos) { return GridPos.neighbors4(pos); }
 
 	/** Loads grid state: normalized position -> tile id. Only add when a position is first revealed; never overwrite. */
 	private Map<String, String> loadGridState()
@@ -181,11 +173,15 @@ public class WorldUnlockService
 
 	/**
 	 * Returns the world unlock grid using rolling assignment (same model as Global Task grid).
-	 * Center (0,0) = start tile. Tiles are assigned only when first revealed (adjacent to an unlocked tile).
-	 * Never reassign; prerequisites must be placed or unlocked before an unlock can be rolled.
-	 * Skill level-up tiles are prioritized: until all skill tiles are unlocked, each new slot has a 75% chance
-	 * to be filled by a skill tile and 25% by a non-skill tile. When filling a non-skill slot, progression order is:
-	 * quests first, then bosses, then areas, then other (e.g. achievement diary). Once all skills are unlocked, non-skill tiles in that order are preferred.
+	 * Center (0,0) = start tile. Tiles are assigned only when first revealed (adjacent to a claimed tile).
+	 * Never reassign; a tile may only be assigned to a revealed slot when every prerequisite tile is <b>unlocked or
+	 * claimed</b> on the grid (quest/boss/skill prerequisites count once unlocked; area tiles are auto-claimed on unlock).
+	 * Fog-of-war reveal still spreads only from <b>claimed</b> tiles (and the center), so adjacent cells stay hidden until
+	 * the player claims the neighboring tile.
+	 * Rings 1–2: only tier-1 skill tiles (levels 1–10). Ring 3+ (weighted roll): 65% skill, 12% quest (requires an
+	 * unlocked area prerequisite), 10% neighbor area (from areas.json adjacency to an unlocked area only), 10% boss
+	 * (any boss whose prerequisites are satisfied), 3% achievement diary (unlocked area prerequisite).
+	 * Fallback order matches that priority.
 	 */
 	public List<WorldUnlockTilePlacement> getGrid()
 	{
@@ -248,9 +244,11 @@ public class WorldUnlockService
 		}
 		List<String> toAssign = new ArrayList<>(toAssignSet);
 
-		// 5. Available = tiles (not center) not yet placed, with prerequisites satisfied (unlocked or already placed)
-		Set<String> satisfiedIds = new HashSet<>(unlockedIds);
-		satisfiedIds.addAll(placedIds);
+		// 5. Available = tiles (not center) not yet placed, with prerequisites satisfied (unlocked or claimed).
+		// Quest/boss tiles are not auto-claimed on unlock; counting only claimed would block bosses (e.g. Brutus after
+		// "Ides of Milk") from ever entering the assignment pool until an extra claim step.
+		Set<String> satisfiedIds = new HashSet<>(claimedIds);
+		satisfiedIds.addAll(unlockedIds);
 		List<WorldUnlockTile> available = new ArrayList<>();
 		for (WorldUnlockTile t : all)
 		{
@@ -260,8 +258,9 @@ public class WorldUnlockService
 			available.add(t);
 		}
 
-		// 6. Neighbor areas (from areas.json): area ids that are neighbors of any unlocked area and not yet unlocked
-		Set<String> neighborAreaIds = getNeighborAreaIdsOfUnlocked();
+		// 6. Neighbor areas (from areas.json): only allow area tiles that neighbor an unlocked area (or the starter center).
+		// Revealed-but-not-unlocked area tiles on the grid do not expand the neighbor frontier.
+		Set<String> neighborAreaIds = getNeighborAreaIdsOfUnlockedAreas(centerTile);
 
 		// 7. Partition available into skill, quest, boss, and area (and other). Progression: quests first, then bosses, then areas when filling non-skill slots.
 		List<WorldUnlockTile> skillTiles = new ArrayList<>();
@@ -306,7 +305,7 @@ public class WorldUnlockService
 		}
 		toAssignRc.sort(byDistFromCenter);
 
-		// 9. Assign: rings 1–2 = only skill unlocks level 1–10; ring 3+ = 70% skill, 10% quest (if starting area unlocked), 10% area (if neighbor), 5% boss (if area unlocked), 5% diary (if area unlocked).
+		// 9. Assign: rings 1–2 = only skill unlocks level 1–10; ring 3+ = weighted: skill, quest/boss (unlocked area prereq) ≥ neighbor area.
 		for (int[] rc : toAssignRc)
 		{
 			String pos = rc[0] + "," + rc[1];
@@ -327,35 +326,42 @@ public class WorldUnlockService
 			{
 				// Ring 3+: weighted roll with eligibility
 				double roll = rng.nextDouble();
-				List<WorldUnlockTile> questEligible = questTiles.stream().filter(this::hasUnlockedStartingArea).collect(Collectors.toList());
+				List<WorldUnlockTile> questEligible = questTiles.stream().filter(this::hasUnlockedAreaPrerequisite).collect(Collectors.toList());
+				List<WorldUnlockTile> questLowestTier = lowestTierTiles(questEligible);
 				List<WorldUnlockTile> areaEligible = areaTiles.stream().filter(t -> neighborAreaIds.contains(t.getId())).collect(Collectors.toList());
-				List<WorldUnlockTile> bossEligible = bossTiles.stream().filter(this::hasUnlockedStartingArea).collect(Collectors.toList());
+				List<WorldUnlockTile> areaLowestTier = lowestTierTiles(areaEligible);
+				// Boss tiles here already satisfy prerequisites via claimed ids; do not require a direct area prereq on the
+				// boss (e.g. Brutus only lists quest "Ides of Milk", which would wrongly exclude it from the boss roll).
+				List<WorldUnlockTile> bossEligible = new ArrayList<>(bossTiles);
+				List<WorldUnlockTile> bossLowestTier = lowestTierTiles(bossEligible);
 				List<WorldUnlockTile> diaryEligible = otherNonSkillTiles.stream()
-					.filter(t -> WorldUnlockTileType.ACHIEVEMENT_DIARY.equals(t.getType()) && hasUnlockedStartingArea(t))
+					.filter(t -> WorldUnlockTileType.ACHIEVEMENT_DIARY.equals(t.getType()) && hasUnlockedAreaPrerequisite(t))
 					.collect(Collectors.toList());
+				List<WorldUnlockTile> diaryLowestTier = lowestTierTiles(diaryEligible);
 
-				if (roll < 0.70 && !skillTiles.isEmpty())
+				// Cumulative thresholds: 65% skill, 12% quest, 10% neighbor area, 10% boss, 3% diary (quest/boss ≥ area).
+				if (roll < 0.65 && !skillTiles.isEmpty())
 					chosen = skillTiles.remove(rng.nextInt(skillTiles.size()));
-				else if (roll < 0.80 && !questEligible.isEmpty())
-					chosen = removeRandom(questTiles, questEligible.get(rng.nextInt(questEligible.size())), rng);
-				else if (roll < 0.90 && !areaEligible.isEmpty())
-					chosen = removeRandom(areaTiles, areaEligible.get(rng.nextInt(areaEligible.size())), rng);
-				else if (roll < 0.95 && !bossEligible.isEmpty())
-					chosen = removeRandom(bossTiles, bossEligible.get(rng.nextInt(bossEligible.size())), rng);
+				else if (roll < 0.77 && !questEligible.isEmpty())
+					chosen = chooseFromLowestTier(questTiles, questEligible, questLowestTier, rng);
+				else if (roll < 0.87 && !areaEligible.isEmpty())
+					chosen = chooseFromLowestTier(areaTiles, areaEligible, areaLowestTier, rng);
+				else if (roll < 0.97 && !bossEligible.isEmpty())
+					chosen = chooseFromLowestTier(bossTiles, bossEligible, bossLowestTier, rng);
 				else if (!diaryEligible.isEmpty())
-					chosen = removeRandom(otherNonSkillTiles, diaryEligible.get(rng.nextInt(diaryEligible.size())), rng);
+					chosen = chooseFromLowestTier(otherNonSkillTiles, diaryEligible, diaryLowestTier, rng);
 
 				// Fallback if rolled category was empty: skill → quest → area → boss → diary
 				if (chosen == null && !skillTiles.isEmpty())
 					chosen = skillTiles.remove(rng.nextInt(skillTiles.size()));
 				if (chosen == null && !questEligible.isEmpty())
-					chosen = removeRandom(questTiles, questEligible.get(rng.nextInt(questEligible.size())), rng);
+					chosen = chooseFromLowestTier(questTiles, questEligible, questLowestTier, rng);
 				if (chosen == null && !areaEligible.isEmpty())
-					chosen = removeRandom(areaTiles, areaEligible.get(rng.nextInt(areaEligible.size())), rng);
+					chosen = chooseFromLowestTier(areaTiles, areaEligible, areaLowestTier, rng);
 				if (chosen == null && !bossEligible.isEmpty())
-					chosen = removeRandom(bossTiles, bossEligible.get(rng.nextInt(bossEligible.size())), rng);
+					chosen = chooseFromLowestTier(bossTiles, bossEligible, bossLowestTier, rng);
 				if (chosen == null && !diaryEligible.isEmpty())
-					chosen = removeRandom(otherNonSkillTiles, diaryEligible.get(rng.nextInt(diaryEligible.size())), rng);
+					chosen = chooseFromLowestTier(otherNonSkillTiles, diaryEligible, diaryLowestTier, rng);
 			}
 
 			// Final fallback: always assign a tile to every revealed position so no empty gaps appear
@@ -367,6 +373,9 @@ public class WorldUnlockService
 					if (t == centerTile) continue;
 					if (placedIds.contains(t.getId())) continue;
 					if (!prerequisitesSatisfied(t, satisfiedIds)) continue;
+					// Never allow non-neighbor areas to populate, even as a fallback.
+					// This ensures the first revealed areas near the starter come from areas.json neighbor relationships.
+					if (WorldUnlockTileType.AREA.equals(t.getType()) && !neighborAreaIds.contains(t.getId())) continue;
 					stillAvailable.add(t);
 				}
 				if (!stillAvailable.isEmpty())
@@ -384,7 +393,6 @@ public class WorldUnlockService
 			{
 				gridState.put(pos, chosen.getId());
 				placedIds.add(chosen.getId());
-				satisfiedIds.add(chosen.getId());
 			}
 		}
 
@@ -411,16 +419,27 @@ public class WorldUnlockService
 		return grid;
 	}
 
-	/** Area ids that are neighbors (in areas.json) of any unlocked area tile and not yet unlocked. */
-	private Set<String> getNeighborAreaIdsOfUnlocked()
+	/**
+	 * Area ids that are neighbors (in areas.json) of any <b>unlocked</b> area world-unlock tile, plus neighbors of the
+	 * starter center when it is an area. Does not use merely revealed (assigned but not unlocked) area tiles on the grid.
+	 * Neighbor ids that are already unlocked are excluded.
+	 */
+	private Set<String> getNeighborAreaIdsOfUnlockedAreas(WorldUnlockTile centerTile)
 	{
-		Set<String> neighborIds = new HashSet<>();
+		Set<String> sourceAreaIds = new HashSet<>();
 		for (String tileId : unlockedIds)
 		{
 			WorldUnlockTile tile = getTileById(tileId);
-			if (tile == null || !WorldUnlockTileType.AREA.equals(tile.getType()))
-				continue;
-			Area area = areaGraphService.getArea(tileId);
+			if (tile != null && WorldUnlockTileType.AREA.equals(tile.getType()))
+				sourceAreaIds.add(tileId);
+		}
+		if (centerTile != null && WorldUnlockTileType.AREA.equals(centerTile.getType()) && centerTile.getId() != null)
+			sourceAreaIds.add(centerTile.getId());
+
+		Set<String> neighborIds = new HashSet<>();
+		for (String areaId : sourceAreaIds)
+		{
+			Area area = areaGraphService.getArea(areaId);
 			if (area == null || area.getNeighbors() == null)
 				continue;
 			for (String n : area.getNeighbors())
@@ -478,6 +497,31 @@ public class WorldUnlockService
 		return out;
 	}
 
+	/** Returns all tiles from eligible with the lowest tier present. */
+	private static List<WorldUnlockTile> lowestTierTiles(List<WorldUnlockTile> eligible)
+	{
+		if (eligible == null || eligible.isEmpty())
+			return Collections.emptyList();
+		int minTier = eligible.stream().mapToInt(t -> t.getTier() > 0 ? t.getTier() : Integer.MAX_VALUE).min().orElse(Integer.MAX_VALUE);
+		if (minTier == Integer.MAX_VALUE)
+			return Collections.emptyList();
+		return eligible.stream().filter(t -> t.getTier() == minTier).collect(Collectors.toList());
+	}
+
+	/**
+	 * Chooses from the lowest-tier eligible set when possible, otherwise from any eligible tile.
+	 * Used for quests, neighbor areas, bosses, and diaries so tier 1 appears before higher tiers when multiple are eligible.
+	 */
+	private static WorldUnlockTile chooseFromLowestTier(List<WorldUnlockTile> source, List<WorldUnlockTile> eligible,
+		List<WorldUnlockTile> lowestTierEligible, Random rng)
+	{
+		List<WorldUnlockTile> pickFrom = (lowestTierEligible != null && !lowestTierEligible.isEmpty()) ? lowestTierEligible : eligible;
+		if (pickFrom == null || pickFrom.isEmpty())
+			return null;
+		WorldUnlockTile chosen = pickFrom.get(rng.nextInt(pickFrom.size()));
+		return removeRandom(source, chosen, rng);
+	}
+
 	/**
 	 * Returns the skill tile id whose level band contains the given level (e.g. 50 and "Agility" -> "agility_41_50").
 	 * Used so task requirements like "50 Agility" only populate when that skill bracket is unlocked.
@@ -518,7 +562,8 @@ public class WorldUnlockService
 
 	/**
 	 * True only when all prerequisites are satisfied (AND logic).
-	 * A prerequisite is satisfied if it is resolved to a tile id (by id or displayName match) and that tile is in satisfiedIds (unlocked or already placed in the grid).
+	 * A prerequisite is satisfied if it is resolved to a tile id (by id or displayName match) and that tile id is in satisfiedIds.
+	 * For grid assignment, satisfiedIds is <b>claimed ∪ unlocked</b> tile ids.
 	 * Prerequisites that do not resolve to any tile (e.g. skill-only strings) are not enforced here; they are not in world_unlocks.
 	 */
 	private boolean prerequisitesSatisfied(WorldUnlockTile tile, Set<String> satisfiedIds)
@@ -530,6 +575,15 @@ public class WorldUnlockService
 			String toCheck = (tileId != null) ? tileId : prereq.trim();
 			return satisfiedIds.contains(toCheck);
 		});
+	}
+
+	/** Same id resolution as {@link #prerequisitesSatisfied}; prerequisites may use display name or id. */
+	private boolean isPrerequisiteUnlocked(String prereq)
+	{
+		if (prereq == null) return false;
+		String tileId = resolvePrerequisiteToTileId(prereq);
+		String id = tileId != null ? tileId : prereq.trim();
+		return unlockedIds.contains(id);
 	}
 
 	private static int chebyshevDist(int r1, int c1, int r2, int c2)
@@ -554,15 +608,17 @@ public class WorldUnlockService
 		return getSkillLevelBand(t) == 0 && t.getTier() == 1;
 	}
 
-	/** True if at least one prerequisite of this tile is an area tile id that is unlocked. Used for quest/boss/diary "starting area" eligibility. */
-	private boolean hasUnlockedStartingArea(WorldUnlockTile t)
+	/** True if at least one prerequisite resolves to an area tile that is currently unlocked on the world unlock grid. */
+	private boolean hasUnlockedAreaPrerequisite(WorldUnlockTile t)
 	{
 		if (t.getPrerequisites() == null || t.getPrerequisites().isEmpty()) return false;
 		for (String prereq : t.getPrerequisites())
 		{
-			if (!unlockedIds.contains(prereq)) continue;
-			WorldUnlockTile areaTile = getTileById(prereq);
-			if (areaTile != null && WorldUnlockTileType.AREA.equals(areaTile.getType()))
+			String tileId = resolvePrerequisiteToTileId(prereq);
+			String id = tileId != null ? tileId : prereq.trim();
+			if (!unlockedIds.contains(id)) continue;
+			WorldUnlockTile wt = getTileById(id);
+			if (wt != null && WorldUnlockTileType.AREA.equals(wt.getType()))
 				return true;
 		}
 		return false;
@@ -589,19 +645,18 @@ public class WorldUnlockService
 		if (row == 0 && col == 0)
 			return true; // center (starter) is always revealed
 
-		int[][] deltas = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 		java.util.Map<String, String> posToId = new java.util.HashMap<>();
 		for (WorldUnlockTilePlacement p : grid)
 			posToId.put(p.getRow() + "," + p.getCol(), p.getTile().getId());
 
-		for (int[] d : deltas)
+		java.util.Set<String> claimedNeighborPositions = new java.util.HashSet<>();
+		for (String nPos : GridPos.neighbors4(row, col))
 		{
-			int nr = row + d[0], nc = col + d[1];
-			String neighborId = posToId.get(nr + "," + nc);
+			String neighborId = posToId.get(nPos);
 			if (neighborId != null && claimed.contains(neighborId))
-				return true;
+				claimedNeighborPositions.add(nPos);
 		}
-		return false;
+		return RevealLogic.revealedByClaimedPositions(row, col, claimedNeighborPositions);
 	}
 
 	/** Returns the set of claimed tile ids (unlocked and action completed). Only claimed tiles reveal adjacent positions. */
@@ -648,6 +703,35 @@ public class WorldUnlockService
 	}
 
 	/**
+	 * Ensures the configured starter area tile is unlocked (and claimed, if it is an area tile) when it is free
+	 * (cost 0, no prerequisites). Returns the starter tile id if it was newly unlocked, else null.
+	 *
+	 * This is used to keep the world unlock grid, area overlay, and point totals aligned with the configured starting
+	 * area and starting points without requiring an extra manual "Unlock (Free)" click after reset.
+	 */
+	public String ensureStarterAreaUnlockedIfFree()
+	{
+		if (!loaded) load();
+		String startId = config.startingArea();
+		if (startId == null || startId.trim().isEmpty()) return null;
+		WorldUnlockTile starter = getTileById(startId.trim());
+		if (starter == null) return null;
+		if (unlockedIds.contains(starter.getId())) return null;
+		if (getTileCost(starter) != 0) return null;
+		if (starter.getPrerequisites() != null && !starter.getPrerequisites().isEmpty()) return null;
+
+		unlockedIds.add(starter.getId());
+		persistUnlocked();
+		// Keep behaviour consistent with unlock(): area tiles are claimed immediately on unlock.
+		if (WorldUnlockTileType.AREA.equals(starter.getType()))
+		{
+			claimedIds.add(starter.getId());
+			persistClaimed();
+		}
+		return starter.getId();
+	}
+
+	/**
 	 * Returns tile ids that are either unlocked or revealed on the World Unlock grid.
 	 * Used so task requirements like "[skill] [bracket]" (e.g. "Agility 41-50") allow the task
 	 * to populate once that skill unlock is visible (revealed), not only when it is unlocked.
@@ -689,8 +773,9 @@ public class WorldUnlockService
 
 	/**
 	 * Returns the point cost to unlock this tile when in World Unlock mode.
-	 * Cost = tier × tier points (config) × type multiplier (config) for more scaling by difficulty.
-	 * Example: tier 2, 25 pts, multiplier 4 → 2 × 25 × 4 = 200. The starter area tile returns 0.
+	 * Cost = tile tier × tier points (config) × per-type multiplier for this tile's tier band (config).
+	 * Example: tile tier 2, 25 pts, multiplier 4 → 2 × 25 × 4 = 200. The starter area tile returns 0.
+	 * Tile tier &gt; 5 uses the tier-5 multiplier row.
 	 */
 	public int getTileCost(WorldUnlockTile tile)
 	{
@@ -700,7 +785,8 @@ public class WorldUnlockService
 			return 0;
 		int tier = Math.max(1, tile.getTier());
 		int tierPoints = getTierPoints(tile.getTier());
-		int multiplier = getMultiplier(tile.getType());
+		int multiplierBand = Math.min(5, tier);
+		int multiplier = getMultiplier(tile.getType(), multiplierBand);
 		return tier * tierPoints * multiplier;
 	}
 
@@ -717,18 +803,121 @@ public class WorldUnlockService
 		}
 	}
 
-	private int getMultiplier(String type)
+	/** @param tierBand tile tier clamped to 1–5 (callers pass {@code Math.min(5, tileTier)}) */
+	private int getMultiplier(String type, int tierBand)
 	{
+		int t = Math.min(5, Math.max(1, tierBand));
 		if (type == null) return 1;
 		switch (type)
 		{
-			case WorldUnlockTileType.SKILL: return config.worldUnlockSkillMultiplier();
-			case WorldUnlockTileType.AREA: return config.worldUnlockAreaMultiplier();
-			case WorldUnlockTileType.BOSS: return config.worldUnlockBossMultiplier();
-			case WorldUnlockTileType.QUEST: return config.worldUnlockQuestMultiplier();
-			case WorldUnlockTileType.ACHIEVEMENT_DIARY: return config.worldUnlockAchievementDiaryMultiplier();
+			case WorldUnlockTileType.SKILL:
+				return skillMultiplierForTier(t);
+			case WorldUnlockTileType.AREA:
+				return areaMultiplierForTier(t);
+			case WorldUnlockTileType.BOSS:
+				return bossMultiplierForTier(t);
+			case WorldUnlockTileType.QUEST:
+				return questMultiplierForTier(t);
+			case WorldUnlockTileType.ACHIEVEMENT_DIARY:
+				return achievementDiaryMultiplierForTier(t);
 			case WorldUnlockTileType.TASK_FILTER:
-			default: return config.worldUnlockSkillMultiplier();
+			default:
+				return skillMultiplierForTier(t);
+		}
+	}
+
+	/**
+	 * Per-tier multiplier from config storage, then tier-1 legacy globals, then interface default (for migration from
+	 * pre–per-tier {@code worldUnlockSkillMultiplier}, etc.).
+	 */
+	private int readWorldUnlockMultiplier(int tier, int typeIndex, int interfaceDefault)
+	{
+		String key = "worldUnlockTier" + tier + WORLD_UNLOCK_TYPE_SUFFIX[typeIndex] + "Multiplier";
+		String raw = configManager.getConfiguration(PLUGIN_CONFIG_GROUP, key);
+		if (raw != null && !raw.trim().isEmpty())
+		{
+			try
+			{
+				return Math.max(1, Math.min(99, Integer.parseInt(raw.trim())));
+			}
+			catch (NumberFormatException ignored)
+			{
+			}
+		}
+		if (tier == 1 && typeIndex >= 0 && typeIndex < WORLD_UNLOCK_LEGACY_KEYS.length)
+		{
+			raw = configManager.getConfiguration(PLUGIN_CONFIG_GROUP, WORLD_UNLOCK_LEGACY_KEYS[typeIndex]);
+			if (raw != null && !raw.trim().isEmpty())
+			{
+				try
+				{
+					return Math.max(1, Math.min(99, Integer.parseInt(raw.trim())));
+				}
+				catch (NumberFormatException ignored)
+				{
+				}
+			}
+		}
+		return Math.max(1, Math.min(99, interfaceDefault));
+	}
+
+	private int skillMultiplierForTier(int t)
+	{
+		switch (t)
+		{
+			case 1: return readWorldUnlockMultiplier(1, 0, config.worldUnlockTier1SkillMultiplier());
+			case 2: return readWorldUnlockMultiplier(2, 0, config.worldUnlockTier2SkillMultiplier());
+			case 3: return readWorldUnlockMultiplier(3, 0, config.worldUnlockTier3SkillMultiplier());
+			case 4: return readWorldUnlockMultiplier(4, 0, config.worldUnlockTier4SkillMultiplier());
+			default: return readWorldUnlockMultiplier(5, 0, config.worldUnlockTier5SkillMultiplier());
+		}
+	}
+
+	private int areaMultiplierForTier(int t)
+	{
+		switch (t)
+		{
+			case 1: return readWorldUnlockMultiplier(1, 1, config.worldUnlockTier1AreaMultiplier());
+			case 2: return readWorldUnlockMultiplier(2, 1, config.worldUnlockTier2AreaMultiplier());
+			case 3: return readWorldUnlockMultiplier(3, 1, config.worldUnlockTier3AreaMultiplier());
+			case 4: return readWorldUnlockMultiplier(4, 1, config.worldUnlockTier4AreaMultiplier());
+			default: return readWorldUnlockMultiplier(5, 1, config.worldUnlockTier5AreaMultiplier());
+		}
+	}
+
+	private int bossMultiplierForTier(int t)
+	{
+		switch (t)
+		{
+			case 1: return readWorldUnlockMultiplier(1, 2, config.worldUnlockTier1BossMultiplier());
+			case 2: return readWorldUnlockMultiplier(2, 2, config.worldUnlockTier2BossMultiplier());
+			case 3: return readWorldUnlockMultiplier(3, 2, config.worldUnlockTier3BossMultiplier());
+			case 4: return readWorldUnlockMultiplier(4, 2, config.worldUnlockTier4BossMultiplier());
+			default: return readWorldUnlockMultiplier(5, 2, config.worldUnlockTier5BossMultiplier());
+		}
+	}
+
+	private int questMultiplierForTier(int t)
+	{
+		switch (t)
+		{
+			case 1: return readWorldUnlockMultiplier(1, 3, config.worldUnlockTier1QuestMultiplier());
+			case 2: return readWorldUnlockMultiplier(2, 3, config.worldUnlockTier2QuestMultiplier());
+			case 3: return readWorldUnlockMultiplier(3, 3, config.worldUnlockTier3QuestMultiplier());
+			case 4: return readWorldUnlockMultiplier(4, 3, config.worldUnlockTier4QuestMultiplier());
+			default: return readWorldUnlockMultiplier(5, 3, config.worldUnlockTier5QuestMultiplier());
+		}
+	}
+
+	private int achievementDiaryMultiplierForTier(int t)
+	{
+		switch (t)
+		{
+			case 1: return readWorldUnlockMultiplier(1, 4, config.worldUnlockTier1AchievementDiaryMultiplier());
+			case 2: return readWorldUnlockMultiplier(2, 4, config.worldUnlockTier2AchievementDiaryMultiplier());
+			case 3: return readWorldUnlockMultiplier(3, 4, config.worldUnlockTier3AchievementDiaryMultiplier());
+			case 4: return readWorldUnlockMultiplier(4, 4, config.worldUnlockTier4AchievementDiaryMultiplier());
+			default: return readWorldUnlockMultiplier(5, 4, config.worldUnlockTier5AchievementDiaryMultiplier());
 		}
 	}
 
@@ -755,7 +944,7 @@ public class WorldUnlockService
 		{
 			for (String prereq : tile.getPrerequisites())
 			{
-				if (!unlockedIds.contains(prereq))
+				if (!isPrerequisiteUnlocked(prereq))
 				{
 					return false;
 				}
@@ -767,6 +956,7 @@ public class WorldUnlockService
 		}
 		unlockedIds.add(tileId);
 		persistUnlocked();
+		incrementGridSeed();
 		// Area tiles: unlock and claim in one action (no separate "complete action then claim" step)
 		if (WorldUnlockTileType.AREA.equals(tile.getType()))
 		{
@@ -783,7 +973,7 @@ public class WorldUnlockService
 		{
 			return true;
 		}
-		return tile.getPrerequisites().stream().allMatch(unlockedIds::contains);
+		return tile.getPrerequisites().stream().allMatch(this::isPrerequisiteUnlocked);
 	}
 
 	/** Returns tiles that are not yet unlocked and whose prerequisites are satisfied. */
@@ -879,8 +1069,54 @@ public class WorldUnlockService
 		AREA_TO_DIARY_FALLBACK = Collections.unmodifiableMap(m);
 	}
 
+	/** Single source of truth: achievementDiaryAreaMapping JSON key (normalized lowercase, & -> _) -> tile diary key. Used when default rule does not match tile id. */
+	private static final Map<String, String> DIARY_MAPPING_KEY_OVERRIDES;
+	static
+	{
+		Map<String, String> m = new HashMap<>();
+		m.put("fremennikprovince", "fremennik");
+		m.put("westernprovinces", "western_provinces");
+		DIARY_MAPPING_KEY_OVERRIDES = Collections.unmodifiableMap(m);
+	}
+
+	/** Normalizes achievementDiaryAreaMapping JSON key to diary key used in tile ids (e.g. Lumbridge&Draynor -> lumbridge_draynor). */
+	private static String normalizeDiaryMappingKey(String jsonKey)
+	{
+		if (jsonKey == null || jsonKey.isEmpty()) return "";
+		String s = jsonKey.trim().toLowerCase().replace('&', '_');
+		String override = DIARY_MAPPING_KEY_OVERRIDES.get(s);
+		return override != null ? override : s;
+	}
+
+	/** Loads area_mapping.json and builds diaryKey -> area ids and areaId -> diaryKey. No-op if resource missing. */
+	private void ensureAreaMappingLoaded()
+	{
+		if (diaryKeyToAreaIds != null) return;
+		AreaMappingData data = ResourceJsonLoader.load(getClass(), ResourcePaths.AREA_MAPPING_JSON, AreaMappingData.class, new Gson(), log);
+		Map<String, List<String>> diaryToAreas = new HashMap<>();
+		Map<String, String> areaToDiary = new HashMap<>();
+		if (data != null && data.getAchievementDiaryAreaMapping() != null)
+		{
+			for (Map.Entry<String, List<String>> e : data.getAchievementDiaryAreaMapping().entrySet())
+			{
+				String normalized = normalizeDiaryMappingKey(e.getKey());
+				if (normalized.isEmpty()) continue;
+				List<String> areaIds = e.getValue() != null ? e.getValue() : Collections.emptyList();
+				diaryToAreas.put(normalized, new ArrayList<>(areaIds));
+				for (String areaId : areaIds)
+					if (areaId != null && !areaId.trim().isEmpty())
+						areaToDiary.put(areaId.trim(), normalized);
+			}
+		}
+		diaryKeyToAreaIds = Collections.unmodifiableMap(diaryToAreas);
+		// Merge with tile-based mapping so areas not in JSON still resolve (e.g. from world_unlocks prerequisites)
+		Map<String, String> merged = new HashMap<>(buildAreaIdToDiaryKeyFromTiles());
+		merged.putAll(areaToDiary);
+		areaIdToDiaryKey = Collections.unmodifiableMap(merged);
+	}
+
 	/** Builds area id -> diary key from achievement_diary tiles (prerequisites + diary key as area) plus fallback. */
-	private Map<String, String> buildAreaIdToDiaryKey()
+	private Map<String, String> buildAreaIdToDiaryKeyFromTiles()
 	{
 		Map<String, String> map = new HashMap<>(AREA_TO_DIARY_FALLBACK);
 		Set<String> areaTileIds = tiles.stream()
@@ -903,14 +1139,33 @@ public class WorldUnlockService
 		return map;
 	}
 
-	/** Returns the achievement diary key for an area id (e.g. varrock -> varrock, al_kharid -> desert), or null. */
+	/** Builds area id -> diary key: area_mapping.json first, then tile-based + fallback. */
+	private Map<String, String> buildAreaIdToDiaryKey()
+	{
+		ensureAreaMappingLoaded();
+		return areaIdToDiaryKey;
+	}
+
+	/** Returns the achievement diary key for an area id (e.g. varrock -> varrock, al_kharid -> desert), or null. Uses area_mapping.json when available. */
 	public String getDiaryKeyForAreaId(String areaId)
 	{
 		if (!loaded) load();
 		if (areaId == null || areaId.isEmpty()) return null;
 		if (areaIdToDiaryKey == null)
-			areaIdToDiaryKey = buildAreaIdToDiaryKey();
+			buildAreaIdToDiaryKey();
 		return areaIdToDiaryKey.get(areaId);
+	}
+
+	/**
+	 * Returns the list of area ids that belong to this achievement diary (from area_mapping.json).
+	 * Used to require that at least one of these areas is unlocked before diary tasks can populate.
+	 */
+	public List<String> getAreaIdsForDiaryKey(String diaryKey)
+	{
+		if (!loaded) load();
+		ensureAreaMappingLoaded();
+		List<String> list = diaryKeyToAreaIds.get(diaryKey != null ? diaryKey.trim() : "");
+		return list != null ? new ArrayList<>(list) : Collections.emptyList();
 	}
 
 	/**

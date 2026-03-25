@@ -2,6 +2,9 @@ package com.leaguescape.worldunlock;
 
 import com.leaguescape.LeagueScapePlugin;
 import com.leaguescape.LeagueScapeSounds;
+import com.leaguescape.icons.IconCache;
+import com.leaguescape.icons.IconResolver;
+import com.leaguescape.icons.IconResources;
 import com.leaguescape.points.PointsService;
 import com.leaguescape.task.TaskState;
 import com.leaguescape.task.TaskTile;
@@ -62,57 +65,12 @@ public class GlobalTaskListPanel extends JPanel
 	private static final int CLAIMED_CHECKMARK_SIZE = 18;
 	private static final int CLAIMED_CHECKMARK_INSET = 4;
 
-	private static final String TASK_ICONS_RESOURCE_PREFIX = "/com/taskIcons/";
-	private static final String BOSS_ICONS_RESOURCE_PREFIX = "/com/bossicons/";
-	private static final Map<String, String> BOSS_ICON_OVERRIDES = new HashMap<>();
-	static
-	{
-		BOSS_ICON_OVERRIDES.put("barrows", "game_icon_barrowschests.png");
-		BOSS_ICON_OVERRIDES.put("dagannoth_kings", "game_icon_dagannothrex.png");
-		BOSS_ICON_OVERRIDES.put("calvarion_vetion", "game_icon_calvarion.png");
-		BOSS_ICON_OVERRIDES.put("spindel_venenatis", "game_icon_venenatis.png");
-		BOSS_ICON_OVERRIDES.put("artio_callisto", "game_icon_callisto.png");
-		BOSS_ICON_OVERRIDES.put("crystalline_hunllef", "game_icon_thegauntlet.png");
-		BOSS_ICON_OVERRIDES.put("corrupted_hunllef", "game_icon_thecorruptedgauntlet.png");
-		BOSS_ICON_OVERRIDES.put("the_mimic", "game_icon_mimic.png");
-		BOSS_ICON_OVERRIDES.put("tombs_of_amascut", "game_icon_tombsofamascutexpertmode.png");
-		BOSS_ICON_OVERRIDES.put("the_nightmare", "game_icon_nightmare.png");
-	}
-	private static final Map<String, String> TASK_TYPE_LOCAL_ICON = new HashMap<>();
-	static
-	{
-		TASK_TYPE_LOCAL_ICON.put("Combat", "Combat_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Mining", "Mining_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Fishing", "Fishing_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Cooking", "Cooking_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Woodcutting", "Woodcutting_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Prayer", "Prayer_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Crafting", "Crafting_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Smithing", "Smithing_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Fletching", "Fletching_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Herblore", "Herblore_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Thieving", "Thieving_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Agility", "Agility_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Firemaking", "Firemaking_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Farming", "Farming_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Runecraft", "Runecraft_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Magic", "Magic_icon.png");
-		TASK_TYPE_LOCAL_ICON.put("Hunter", "Hunter_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Construction", "Construction_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Slayer", "Slayer_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Sailing", "Sailing_icon_(detail).png");
-		TASK_TYPE_LOCAL_ICON.put("Quest", "Quest.png");
-		TASK_TYPE_LOCAL_ICON.put("Achievement Diary", "Achievement_Diaries.png");
-		TASK_TYPE_LOCAL_ICON.put("Diary", "Achievement_Diaries.png");
-		TASK_TYPE_LOCAL_ICON.put("Other", "Other_icon.png");
-		TASK_TYPE_LOCAL_ICON.put("Level", "Stats_icon.png");
-	}
-
 	private static final Map<String, BufferedImage> rawTaskIconCache = new ConcurrentHashMap<>();
 
 	private final GlobalTaskListService globalTaskListService;
 	private final PointsService pointsService;
 	private final Runnable onClose;
+	private final Runnable onOpenWorldUnlock;
 	private final Client client;
 	private final AudioPlayer audioPlayer;
 	private final ClientThread clientThread;
@@ -137,11 +95,12 @@ public class GlobalTaskListPanel extends JPanel
 	private int layoutSeed;
 
 	public GlobalTaskListPanel(GlobalTaskListService globalTaskListService, PointsService pointsService,
-		Runnable onClose, Runnable onOpenRulesSetup, Client client, AudioPlayer audioPlayer, ClientThread clientThread, JDialog parentDialog)
+		Runnable onClose, Runnable onOpenWorldUnlock, Runnable onOpenRulesSetup, Client client, AudioPlayer audioPlayer, ClientThread clientThread, JDialog parentDialog)
 	{
 		this.globalTaskListService = globalTaskListService;
 		this.pointsService = pointsService;
 		this.onClose = onClose;
+		this.onOpenWorldUnlock = onOpenWorldUnlock;
 		this.onOpenRulesSetup = onOpenRulesSetup;
 		this.client = client;
 		this.audioPlayer = audioPlayer;
@@ -242,6 +201,13 @@ public class GlobalTaskListPanel extends JPanel
 		southPanel.setBorder(new EmptyBorder(0, 0, 8, 0));
 		JPanel westButtons = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
 		westButtons.setOpaque(false);
+		JButton worldUnlockBtn = newRectangleButton("World Unlock", buttonRect, POPUP_TEXT);
+		worldUnlockBtn.addActionListener(e -> {
+			playSound(LeagueScapeSounds.BUTTON_PRESS);
+			if (onClose != null) onClose.run();
+			if (onOpenWorldUnlock != null) onOpenWorldUnlock.run();
+		});
+		westButtons.add(worldUnlockBtn);
 		JButton rulesSetupBtn = newRectangleButton("Rules & Setup", buttonRect, POPUP_TEXT);
 		rulesSetupBtn.addActionListener(e -> {
 			playSound(LeagueScapeSounds.BUTTON_PRESS);
@@ -315,7 +281,7 @@ public class GlobalTaskListPanel extends JPanel
 			if (!isCenter)
 			{
 				String cacheKey = tile.getTaskType() != null ? ("type:" + tile.getTaskType()) : tile.getDisplayName();
-				if ("killCount".equalsIgnoreCase(tile.getTaskType()) && tile.getBossId() != null && !tile.getBossId().isEmpty())
+				if (com.leaguescape.constants.TaskTypes.KILL_COUNT.equalsIgnoreCase(tile.getTaskType()) && tile.getBossId() != null && !tile.getBossId().isEmpty())
 					cacheKey = "killCount:" + tile.getBossId();
 				BufferedImage raw = rawTaskIconCache.get(cacheKey);
 				if (raw == null)
@@ -675,96 +641,34 @@ public class GlobalTaskListPanel extends JPanel
 
 	private static BufferedImage loadRawLocalIcon(String taskType, String displayName, String bossId)
 	{
-		String path = getLocalIconPath(taskType, displayName, bossId);
+		String path = IconResolver.resolveTaskTileLocalIconPath(taskType, displayName, bossId);
 		if (path == null) return null;
-		return rawTaskIconCache.computeIfAbsent(path, p -> ImageUtil.loadImageResource(LeagueScapePlugin.class, p));
-	}
-
-	private static String getLocalIconPath(String taskType, String displayName, String bossId)
-	{
-		if (isCollectionLogTask(taskType, displayName))
-			return TASK_ICONS_RESOURCE_PREFIX + "Collection_log_detail.png";
-		if (isClueTask(taskType, displayName))
-			return TASK_ICONS_RESOURCE_PREFIX + "Clue_scroll_v1.png";
-		if ("killCount".equalsIgnoreCase(taskType) && bossId != null && !bossId.isEmpty())
-		{
-			String bossPath = getBossIconPath(bossId);
-			if (bossPath != null) return bossPath;
-		}
-		if (taskType != null && TASK_TYPE_LOCAL_ICON.containsKey(taskType))
-			return TASK_ICONS_RESOURCE_PREFIX + TASK_TYPE_LOCAL_ICON.get(taskType);
-		return null;
-	}
-
-	/** Boss icon path from com/bossicons/ (same logic as WorldUnlockGridPanel). */
-	private static String getBossIconPath(String bossTileId)
-	{
-		String filename = BOSS_ICON_OVERRIDES.get(bossTileId);
-		if (filename == null)
-			filename = "game_icon_" + bossTileId.replace("_", "") + ".png";
-		return BOSS_ICONS_RESOURCE_PREFIX + filename;
+		return rawTaskIconCache.computeIfAbsent(path, p -> IconCache.loadWithFallback(p, IconResources.GENERIC_TASK_ICON));
 	}
 
 	private static boolean isCollectionLogTask(String taskType, String displayName)
 	{
-		if (taskType != null && taskType.toLowerCase().contains("collection")) return true;
+		if (com.leaguescape.constants.TaskTypes.isCollectionLogType(taskType)) return true;
 		return displayName != null && displayName.toLowerCase().contains("collection log");
-	}
-
-	private static boolean isClueTask(String taskType, String displayName)
-	{
-		if (taskType != null && ("Clue".equalsIgnoreCase(taskType) || taskType.toLowerCase().contains("clue"))) return true;
-		return displayName != null && displayName.toLowerCase().contains("clue scroll");
 	}
 
 	private static boolean isIconMatchCombatSize(String taskType, String displayName)
 	{
 		if (taskType != null)
 		{
-			if ("Quest".equalsIgnoreCase(taskType)) return true;
-			if ("Achievement Diary".equalsIgnoreCase(taskType) || "Achievement diary".equalsIgnoreCase(taskType) || "Diary".equalsIgnoreCase(taskType)) return true;
+			if (com.leaguescape.constants.TaskTypes.QUEST.equalsIgnoreCase(taskType)) return true;
+			if (com.leaguescape.constants.TaskTypes.isAchievementDiaryType(taskType)) return true;
 		}
 		return isCollectionLogTask(taskType, displayName);
 	}
 
-	private static BufferedImage scaleToFitAllowUpscale(BufferedImage src, int maxW, int maxH)
-	{
-		if (src == null || maxW <= 0 || maxH <= 0) return null;
-		int w = src.getWidth(), h = src.getHeight();
-		if (w <= 0 || h <= 0) return null;
-		double scale = Math.min((double) maxW / w, (double) maxH / h);
-		int nw = Math.max(1, (int) Math.round(w * scale));
-		int nh = Math.max(1, (int) Math.round(h * scale));
-		return (nw == w && nh == h) ? src : ImageUtil.resizeImage(src, nw, nh);
-	}
-
-	private static BufferedImage scaleToLargestDimension(BufferedImage src, int targetMaxDimension)
-	{
-		if (src == null || targetMaxDimension <= 0) return null;
-		int w = src.getWidth(), h = src.getHeight();
-		if (w <= 0 || h <= 0) return null;
-		int maxDim = Math.max(w, h);
-		if (maxDim <= 0) return null;
-		double scale = (double) targetMaxDimension / maxDim;
-		int nw = Math.max(1, (int) Math.round(w * scale));
-		int nh = Math.max(1, (int) Math.round(h * scale));
-		return (nw == w && nh == h) ? src : ImageUtil.resizeImage(src, nw, nh);
-	}
+	private static BufferedImage scaleToFitAllowUpscale(BufferedImage src, int maxW, int maxH) { return IconCache.scaleToFitAllowUpscale(src, maxW, maxH); }
+	private static BufferedImage scaleToLargestDimension(BufferedImage src, int targetMaxDimension) { return IconCache.scaleToLargestDimension(src, targetMaxDimension); }
 
 	private static BufferedImage loadDefaultTaskIcon()
 	{
-		BufferedImage img = ImageUtil.loadImageResource(LeagueScapePlugin.class, "complete_checkmark.png");
-		if (img != null)
-		{
-			int maxW = 28, maxH = 28;
-			int w = img.getWidth(), h = img.getHeight();
-			double scale = Math.min((double) maxW / w, (double) maxH / h);
-			scale = Math.min(scale, 1.0);
-			int nw = Math.max(1, (int) Math.round(w * scale));
-			int nh = Math.max(1, (int) Math.round(h * scale));
-			return (nw == w && nh == h) ? img : ImageUtil.resizeImage(img, nw, nh);
-		}
-		return null;
+		return IconCache.loadWithFallback(IconResources.GENERIC_TASK_ICON,
+			IconResources.TASK_ICONS_RESOURCE_PREFIX + "Other_icon.png");
 	}
 
 	// --- UI helpers ---

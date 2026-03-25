@@ -3,16 +3,15 @@ package com.leaguescape;
 import java.io.InputStream;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.VarPlayer;
 import net.runelite.client.audio.AudioPlayer;
 
 /**
  * Plays LeagueScape UI sound effects from classpath resources under /soundeffects/.
  * Gain is in dB; 0f = normal volume. Use {@link #play(AudioPlayer, String)} or
  * {@link #play(AudioPlayer, String, Client)} with one of the public path constants.
- * When a {@link Client} is provided, volume is scaled by the game's Audio Settings:
- * the RuneLite API exposes {@link Client#getMusicVolume()} (0-255) but not the Sound Effects
- * slider, so LeagueScape sounds currently follow the <b>Music</b> volume slider. If the API
- * adds getSoundEffectVolume() in the future, callers can switch to that for the Sound Effects slider.
+ * When a {@link Client} is provided, volume follows the game's <b>Sound effects</b> slider
+ * via {@link VarPlayer#SOUND_EFFECT_VOLUME} (same scale as {@link net.runelite.api.SoundEffectVolume}).
  */
 @Slf4j
 public final class LeagueScapeSounds
@@ -35,8 +34,7 @@ public final class LeagueScapeSounds
 	private static final float GAIN_DB_MUTED = -80f;
 
 	/**
-	 * Converts the game volume (0-255, e.g. from Music or Sound Effects slider) to dB gain.
-	 * 0 = muted, 255 = full (0 dB).
+	 * Converts the game volume (0 = mute; typical sound-effect steps up to 127; music may use up to 255) to dB gain.
 	 */
 	public static float volumeToGainDb(int volume0to255)
 	{
@@ -60,9 +58,8 @@ public final class LeagueScapeSounds
 	}
 
 	/**
-	 * Plays a sound scaled by the game's audio volume. Uses the game's Sound Effects volume
-	 * when the RuneLite API exposes it; otherwise uses Music volume (0-255) so LeagueScape
-	 * sounds follow the Audio Settings panel. Safe to call with null player, path, or client.
+	 * Plays a sound scaled by the game's <b>Sound effects</b> volume (Audio Settings in the client).
+	 * Safe to call with null player, path, or client.
 	 *
 	 * @param player       RuneLite audio player (may be null)
 	 * @param resourcePath classpath path (e.g. {@link #LOCKED})
@@ -74,9 +71,7 @@ public final class LeagueScapeSounds
 		float gain = GAIN_DB_FULL;
 		if (client != null)
 		{
-			// API only exposes getMusicVolume(); use it so our sounds follow the Music slider.
-			// When getSoundEffectVolume() is added, use it here for the Sound Effects slider.
-			int vol = client.getMusicVolume();
+			int vol = client.getVarpValue(VarPlayer.SOUND_EFFECT_VOLUME);
 			gain = volumeToGainDb(vol);
 			if (gain <= GAIN_DB_MUTED + 1f)
 			{

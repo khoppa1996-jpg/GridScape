@@ -2,6 +2,10 @@ package com.leaguescape.worldunlock;
 
 import com.leaguescape.LeagueScapePlugin;
 import com.leaguescape.LeagueScapeSounds;
+import com.leaguescape.constants.TaskTypes;
+import com.leaguescape.icons.IconCache;
+import com.leaguescape.icons.IconResolver;
+import com.leaguescape.icons.IconResources;
 import com.leaguescape.points.PointsService;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -60,146 +64,6 @@ public class WorldUnlockGridPanel extends JPanel
 	private static final int TILE_ICON_MARGIN = 12;
 	private static final int CLAIMED_CHECKMARK_SIZE = 18;
 	private static final int CLAIMED_CHECKMARK_INSET = 4;
-
-	private static final String TASK_ICONS_RESOURCE_PREFIX = "/com/taskIcons/";
-	private static final String BOSS_ICONS_RESOURCE_PREFIX = "/com/bossicons/";
-	private static final String AREA_ICONS_RESOURCE_PREFIX = "/com/area_icons/";
-	/** Area unlock tile id (from areas.json) -> area icon filename in com/area_icons/. Missing areas fall back to letter "A" icon.
-	 *  Only isle_of_souls has no icon as of last check. */
-	private static final Map<String, String> AREA_ICON_FILENAME = new HashMap<>();
-	static
-	{
-		AREA_ICON_FILENAME.put("southeast_wilderness", "Wilderness_SE_icon.png");
-		AREA_ICON_FILENAME.put("fossil_island", "Fossil_Island_icon.png");
-		AREA_ICON_FILENAME.put("isle_of_souls", "Isle_Of_Souls_icon.png");
-		AREA_ICON_FILENAME.put("silvarea", "Silvarea_icon.png");
-		AREA_ICON_FILENAME.put("slepe", "Slepe_icon.png");
-		AREA_ICON_FILENAME.put("grand_exchange", "Grand_Exchange_icon.png");
-		AREA_ICON_FILENAME.put("edgeville", "Edgeville_icon.png");
-		AREA_ICON_FILENAME.put("necropolis", "Necropolis_icon.png");
-		AREA_ICON_FILENAME.put("lassar", "Lassar_icon.png");
-		AREA_ICON_FILENAME.put("troll_country", "Troll_Country_icon.png");
-		AREA_ICON_FILENAME.put("arceuus", "Arceuus_icon.png");
-		AREA_ICON_FILENAME.put("northern_kourend", "Northern_Kourend_icon.png");
-		AREA_ICON_FILENAME.put("tlati_rainforest", "Tlati_Rainforest_icon.png");
-		AREA_ICON_FILENAME.put("lumbridge", "Lumbridge_icon.png");
-		AREA_ICON_FILENAME.put("ape_atoll", "Ape_Atoll_icon.png");
-		AREA_ICON_FILENAME.put("fremennik_isles", "Fremennik_Isles_icon.png");
-		AREA_ICON_FILENAME.put("deep_wilderness", "Wilderness_Deep_icon.png");
-		AREA_ICON_FILENAME.put("northeast_wilderness", "Wilderness_NE_icon.png");
-		AREA_ICON_FILENAME.put("north_central_wilderness", "Wilderness_NC_icon.png");
-		AREA_ICON_FILENAME.put("northwestern_wilderness", "Wilderness_NW_icon.png");
-		AREA_ICON_FILENAME.put("southwestern_wilderness", "Wilderness_SW_icon.png");
-		AREA_ICON_FILENAME.put("south_central_wilderness", "Wilderness_SC_icon.png");
-		AREA_ICON_FILENAME.put("canifis", "Canifis_icon.png");
-		AREA_ICON_FILENAME.put("haunted_wood", "Haunted_wood_icon.png");
-		AREA_ICON_FILENAME.put("port_phasmatys", "Port_Phasmatys_icon.png");
-		AREA_ICON_FILENAME.put("myreditch", "Myreditch_icon.png");
-		AREA_ICON_FILENAME.put("darkmeyer", "Darkmeyer_icon.png");
-		AREA_ICON_FILENAME.put("southern_morytania", "Southern_Morytania_icon.png");
-		AREA_ICON_FILENAME.put("mort_myre_swamp", "Mort_Myre_swamp_icon.png");
-		AREA_ICON_FILENAME.put("draynor", "Draynor_icon.png");
-		AREA_ICON_FILENAME.put("al_kharid", "Al_Kharid_icon.png");
-		AREA_ICON_FILENAME.put("desert", "Desert_icon.png");
-		AREA_ICON_FILENAME.put("uzer_desert", "Uzer_Desert_icon.png");
-		AREA_ICON_FILENAME.put("nardah_desert", "Nardah_Desert_icon.png");
-		AREA_ICON_FILENAME.put("sophanem", "Sophanem_icon.png");
-		AREA_ICON_FILENAME.put("polnivneach_desert", "Pollnivneach_icon.png");
-		AREA_ICON_FILENAME.put("jaldraocht", "Jaldraocht_icon.png");
-		AREA_ICON_FILENAME.put("ruins_of_unkah", "Ruins_of_Unkah_icon.png");
-		AREA_ICON_FILENAME.put("falador", "Falador_icon.png");
-		AREA_ICON_FILENAME.put("port_sarim_mudskipper", "Port_Sarim_icon.png");
-		AREA_ICON_FILENAME.put("entrana", "Entrana_icon.png");
-		AREA_ICON_FILENAME.put("pest_control", "Pest_Control_icon.png");
-		AREA_ICON_FILENAME.put("musa_point", "Musa_Point_icon.png");
-		AREA_ICON_FILENAME.put("karamja", "Karamja_icon.png");
-		AREA_ICON_FILENAME.put("taverley", "Taverley_icon.png");
-		AREA_ICON_FILENAME.put("burthorpe", "Burthorpe_icon.png");
-		AREA_ICON_FILENAME.put("trollheim", "Trollheim_icon.png");
-		AREA_ICON_FILENAME.put("weiss", "Weiss_icon.png");
-		AREA_ICON_FILENAME.put("rellekka", "Rellekka_icon.png");
-		AREA_ICON_FILENAME.put("camelot_seers", "Camelot_Seers_icon.png");
-		AREA_ICON_FILENAME.put("hemenster", "Hemenster_icon.png");
-		AREA_ICON_FILENAME.put("barbarian_waterfall", "Barbarian_waterfall.png");
-		AREA_ICON_FILENAME.put("gnome_stronghold", "Gnome_stronghold_icon.png");
-		AREA_ICON_FILENAME.put("piscatoris", "Piscatoris_icon.png");
-		AREA_ICON_FILENAME.put("ardougne", "Ardougne_icon.png");
-		AREA_ICON_FILENAME.put("varrock", "Varrock_icon.png");
-		AREA_ICON_FILENAME.put("khazard_battlegrounds", "Khazard_icon.png");
-		AREA_ICON_FILENAME.put("yanille", "Yanille_icon.png");
-		AREA_ICON_FILENAME.put("feldip_hills", "Feldip_hills_icon.png");
-		AREA_ICON_FILENAME.put("corsair_cove", "Corsair_Cove_icon.png");
-		AREA_ICON_FILENAME.put("rimmington", "Rimmington_icon.png");
-		AREA_ICON_FILENAME.put("isafdar", "Isafdar_icon.png");
-		AREA_ICON_FILENAME.put("prifddinas", "Prifddinas_icon.png");
-		AREA_ICON_FILENAME.put("port_piscarilius", "Port_Piscarilius_icon.png");
-		AREA_ICON_FILENAME.put("lovakengj", "Lovakengj_icon.png");
-		AREA_ICON_FILENAME.put("kingstown", "Kingstown_icon.png");
-		AREA_ICON_FILENAME.put("hosidius", "Hosidius_icon.png");
-		AREA_ICON_FILENAME.put("kourend_woodland", "Kourend_woodland_icon.png");
-		AREA_ICON_FILENAME.put("shayzien", "Shayzien_icon.png");
-		AREA_ICON_FILENAME.put("kebos_lowlands", "Kebos_LowLands_icon.png");
-		AREA_ICON_FILENAME.put("kebos_swamp", "Kebos_Swamp_icon.png");
-		AREA_ICON_FILENAME.put("custodia_mountains", "Custodia_Mountains_icon.png");
-		AREA_ICON_FILENAME.put("auburnvale", "Auburnvale_icon.png");
-		AREA_ICON_FILENAME.put("proudspire", "Proudspire_icon.png");
-		AREA_ICON_FILENAME.put("western_varlamore", "Varlamore_W_icon.png");
-		AREA_ICON_FILENAME.put("eastern_varlamore", "Varlamore_E_icon.png");
-		AREA_ICON_FILENAME.put("aldarin", "Aldarin_icon.png");
-		AREA_ICON_FILENAME.put("ardent_ne", "Ardent_NE_icon.png");
-		AREA_ICON_FILENAME.put("ardent_nw", "Ardent_NW_icon.png");
-		AREA_ICON_FILENAME.put("ardent_se", "Ardent_SE_icon.png");
-		AREA_ICON_FILENAME.put("ardent_sw", "Ardent_SW_icon.png");
-		AREA_ICON_FILENAME.put("unquiet", "Unquiet_icon.png");
-		AREA_ICON_FILENAME.put("shrouded_e", "Shrouded_E_icon.png");
-		AREA_ICON_FILENAME.put("shrouded_w", "Shrouded_W_icon.png");
-		AREA_ICON_FILENAME.put("sunset", "Sunset_icon.png");
-		AREA_ICON_FILENAME.put("western_s", "Western_S_icon.png");
-		AREA_ICON_FILENAME.put("western_n", "Western_N_icon.png");
-		AREA_ICON_FILENAME.put("northern_w", "Northern_W_icon.png");
-		AREA_ICON_FILENAME.put("northern_e", "Northern_E_icon.png");
-		AREA_ICON_FILENAME.put("mos_le_harmless", "Mos_Le_harmless_icon.png");
-		AREA_ICON_FILENAME.put("catherby", "Catherby_icon.png");
-	}
-	/** Boss unlock tile id -> boss icon filename (e.g. game_icon_barrowschests.png) where id does not match filename. */
-	private static final Map<String, String> BOSS_ICON_OVERRIDES = new HashMap<>();
-	static
-	{
-		BOSS_ICON_OVERRIDES.put("barrows", "game_icon_barrowschests.png");
-		BOSS_ICON_OVERRIDES.put("dagannoth_kings", "game_icon_dagannothrex.png");
-		BOSS_ICON_OVERRIDES.put("calvarion_vetion", "game_icon_calvarion.png");
-		BOSS_ICON_OVERRIDES.put("spindel_venenatis", "game_icon_venenatis.png");
-		BOSS_ICON_OVERRIDES.put("artio_callisto", "game_icon_callisto.png");
-		BOSS_ICON_OVERRIDES.put("crystalline_hunllef", "game_icon_thegauntlet.png");
-		BOSS_ICON_OVERRIDES.put("corrupted_hunllef", "game_icon_thecorruptedgauntlet.png");
-		BOSS_ICON_OVERRIDES.put("the_mimic", "game_icon_mimic.png");
-		BOSS_ICON_OVERRIDES.put("tombs_of_amascut", "game_icon_tombsofamascutexpertmode.png");
-		BOSS_ICON_OVERRIDES.put("the_nightmare", "game_icon_nightmare.png");
-	}
-	private static final Map<String, String> SKILL_ICON_MAP = new HashMap<>();
-	static
-	{
-		SKILL_ICON_MAP.put("Combat", "Combat_icon_(detail).png");
-		SKILL_ICON_MAP.put("Mining", "Mining_icon_(detail).png");
-		SKILL_ICON_MAP.put("Fishing", "Fishing_icon_(detail).png");
-		SKILL_ICON_MAP.put("Cooking", "Cooking_icon_(detail).png");
-		SKILL_ICON_MAP.put("Woodcutting", "Woodcutting_icon_(detail).png");
-		SKILL_ICON_MAP.put("Prayer", "Prayer_icon_(detail).png");
-		SKILL_ICON_MAP.put("Crafting", "Crafting_icon_(detail).png");
-		SKILL_ICON_MAP.put("Smithing", "Smithing_icon_(detail).png");
-		SKILL_ICON_MAP.put("Fletching", "Fletching_icon_(detail).png");
-		SKILL_ICON_MAP.put("Herblore", "Herblore_icon_(detail).png");
-		SKILL_ICON_MAP.put("Thieving", "Thieving_icon_(detail).png");
-		SKILL_ICON_MAP.put("Agility", "Agility_icon_(detail).png");
-		SKILL_ICON_MAP.put("Firemaking", "Firemaking_icon_(detail).png");
-		SKILL_ICON_MAP.put("Farming", "Farming_icon_(detail).png");
-		SKILL_ICON_MAP.put("Runecraft", "Runecraft_icon_(detail).png");
-		SKILL_ICON_MAP.put("Magic", "Magic_icon.png");
-		SKILL_ICON_MAP.put("Hunter", "Hunter_icon_(detail).png");
-		SKILL_ICON_MAP.put("Construction", "Construction_icon_(detail).png");
-		SKILL_ICON_MAP.put("Slayer", "Slayer_icon_(detail).png");
-		SKILL_ICON_MAP.put("Sailing", "Sailing_icon_(detail).png");
-	}
 
 	private static final Map<String, BufferedImage> iconCache = new ConcurrentHashMap<>();
 
@@ -406,6 +270,7 @@ public class WorldUnlockGridPanel extends JPanel
 			boolean isUnlocked = unlocked.contains(tile.getId());
 			boolean isClaimed = claimed.contains(tile.getId());
 
+			// The starter tile should show its area icon too (center is still a real tile).
 			BufferedImage tileIcon = loadUnlockTileIcon(tile, iconMaxFit);
 
 			JPanel cell = buildTileCell(placement, isCenter, isUnlocked, isClaimed, tileIcon, tileSize, iconMargin, grid, claimed);
@@ -438,20 +303,23 @@ public class WorldUnlockGridPanel extends JPanel
 					skillName = tile.getTaskLink().getSkillName();
 				if (skillName == null)
 					skillName = extractSkillNameFromDisplay(tile.getDisplayName());
-				if (skillName != null && SKILL_ICON_MAP.containsKey(skillName))
-					raw = loadFromTaskIcons(SKILL_ICON_MAP.get(skillName));
+				if (skillName != null)
+				{
+					String path = IconResolver.resolveTaskTypeLocalIconPath(skillName);
+					raw = loadClasspathTaskIcon(path);
+				}
 				break;
 			}
 			case "quest":
-				raw = loadFromTaskIcons("Quest.png");
+				raw = loadClasspathTaskIcon(IconResolver.resolveTaskTypeLocalIconPath(TaskTypes.QUEST));
 				break;
 			case "achievement_diary":
-				raw = loadFromTaskIcons("Achievement_Diaries.png");
+				raw = loadClasspathTaskIcon(IconResolver.resolveTaskTypeLocalIconPath(TaskTypes.ACHIEVEMENT_DIARY));
 				break;
 			case "boss":
 				raw = loadBossIcon(tile.getId());
 				if (raw == null)
-					raw = loadFromTaskIcons("Combat_icon_(detail).png");
+					raw = loadClasspathTaskIcon(IconResolver.resolveTaskTypeLocalIconPath(TaskTypes.COMBAT));
 				break;
 			case "area":
 				raw = loadAreaIcon(tile.getId());
@@ -459,7 +327,7 @@ public class WorldUnlockGridPanel extends JPanel
 					raw = createLetterIcon("A", iconMaxFit);
 				break;
 			default:
-				raw = loadFromTaskIcons("Other_icon.png");
+				raw = loadClasspathTaskIcon(IconResolver.resolveTaskTypeLocalIconPath(TaskTypes.OTHER));
 				break;
 		}
 
@@ -503,53 +371,41 @@ public class WorldUnlockGridPanel extends JPanel
 	private static String extractSkillNameFromDisplay(String displayName)
 	{
 		if (displayName == null) return null;
-		for (String skill : SKILL_ICON_MAP.keySet())
+		for (String skill : IconResources.TASK_TYPE_LOCAL_ICON.keySet())
 		{
 			if (displayName.startsWith(skill)) return skill;
 		}
 		return null;
 	}
 
-	private static BufferedImage loadFromTaskIcons(String filename)
+	/** Loads an image from a classpath path returned by {@link IconResolver} (taskIcons / same roots). */
+	private static BufferedImage loadClasspathTaskIcon(String classpathPath)
 	{
-		String path = TASK_ICONS_RESOURCE_PREFIX + filename;
-		return iconCache.computeIfAbsent(path, p -> ImageUtil.loadImageResource(LeagueScapePlugin.class, p));
+		if (classpathPath == null) return null;
+		return iconCache.computeIfAbsent(classpathPath, p -> IconCache.loadWithFallback(p, IconResources.GENERIC_TASK_ICON));
 	}
 
 	/** Loads area tile icon from com/area_icons/; returns null if no icon for area or load fails. */
 	private static BufferedImage loadAreaIcon(String areaId)
 	{
-		if (areaId == null || areaId.isEmpty()) return null;
-		String filename = AREA_ICON_FILENAME.get(areaId);
-		if (filename == null) return null;
-		String path = AREA_ICONS_RESOURCE_PREFIX + filename;
+		String path = IconResolver.resolveAreaIconPath(areaId);
+		if (path == null) return null;
 		BufferedImage img = iconCache.get(path);
 		if (img != null) return img;
-		try
-		{
-			img = ImageUtil.loadImageResource(LeagueScapePlugin.class, path);
-			if (img != null) iconCache.put(path, img);
-		}
-		catch (Exception ignored) { }
+		img = IconCache.loadWithFallback(path, IconResources.GENERIC_TASK_ICON);
+		if (img != null) iconCache.put(path, img);
 		return img;
 	}
 
 	/** Loads boss tile icon from com/bossicons/; returns null if not found. */
 	private static BufferedImage loadBossIcon(String bossTileId)
 	{
-		if (bossTileId == null || bossTileId.isEmpty()) return null;
-		String filename = BOSS_ICON_OVERRIDES.get(bossTileId);
-		if (filename == null)
-			filename = "game_icon_" + bossTileId.replace("_", "") + ".png";
-		String path = BOSS_ICONS_RESOURCE_PREFIX + filename;
+		String path = IconResolver.resolveBossIconPath(bossTileId);
+		if (path == null) return null;
 		BufferedImage img = iconCache.get(path);
 		if (img != null) return img;
-		try
-		{
-			img = ImageUtil.loadImageResource(LeagueScapePlugin.class, path);
-			if (img != null) iconCache.put(path, img);
-		}
-		catch (Exception ignored) { }
+		img = IconCache.loadWithFallback(path, IconResources.GENERIC_TASK_ICON);
+		if (img != null) iconCache.put(path, img);
 		return img;
 	}
 
@@ -656,10 +512,11 @@ public class WorldUnlockGridPanel extends JPanel
 		return cell;
 	}
 
-	/** Claimed = unlocked + action completed; shows icon (when present), dim overlay, and checkmark. */
+	/** Claimed = unlocked + action completed; shows checkmark and reveals neighbors. */
 	private JPanel buildClaimedCell(WorldUnlockTile tile, boolean isCenter, BufferedImage tileIcon, int tileSize, int iconMargin)
 	{
 		final BufferedImage bg = tileBg;
+		final BufferedImage padlock = padlockImg;
 		final BufferedImage iconImage = tileIcon;
 		final int margin = iconMargin;
 		final BufferedImage checkmark = checkmarkImg != null
@@ -692,6 +549,14 @@ public class WorldUnlockGridPanel extends JPanel
 						int y = margin + (innerH - drawH) / 2;
 						g.drawImage(iconImage.getScaledInstance(drawW, drawH, Image.SCALE_SMOOTH), x, y, null);
 					}
+				}
+				if (isCenter && padlock != null)
+				{
+					Graphics2D g2 = (Graphics2D) g.create();
+					g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.35f));
+					int s = Math.min(getWidth(), getHeight()) * 3 / 4;
+					g2.drawImage(padlock.getScaledInstance(s, s, Image.SCALE_SMOOTH), (getWidth() - s) / 2, (getHeight() - s) / 2, null);
+					g2.dispose();
 				}
 				g.setColor(new Color(120, 120, 120, 140));
 				g.fillRect(0, 0, getWidth(), getHeight());

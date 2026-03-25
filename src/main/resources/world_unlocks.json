@@ -14,7 +14,7 @@
       "id": "draynor",
       "displayName": "Draynor",
       "tier": 1,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -22,7 +22,7 @@
       "id": "al_kharid",
       "displayName": "Al Kharid",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -30,7 +30,7 @@
       "id": "varrock",
       "displayName": "Varrock",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -38,7 +38,7 @@
       "id": "southeast_wilderness",
       "displayName": "Southeast Wilderness",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -70,7 +70,7 @@
       "id": "deep_wilderness",
       "displayName": "Deep Wilderness",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -78,7 +78,7 @@
       "id": "northeast_wilderness",
       "displayName": "Northeast Wilderness",
       "tier": 5,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -86,7 +86,7 @@
       "id": "north_central_wilderness",
       "displayName": "North Central Wilderness",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -94,7 +94,7 @@
       "id": "northwestern_wilderness",
       "displayName": "Northwest Wilderness",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -102,7 +102,7 @@
       "id": "southwestern_wilderness",
       "displayName": "Southwest Wilderness",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -110,7 +110,7 @@
       "id": "south_central_wilderness",
       "displayName": "South Central Wilderness",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -118,7 +118,7 @@
       "id": "silvarea",
       "displayName": "Silvarea",
       "tier": 2,
-      "prerequisites": ["varrock"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -126,7 +126,7 @@
       "id": "canifis",
       "displayName": "Canifis",
       "tier": 3,
-      "prerequisites": ["silvarea"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -134,7 +134,7 @@
       "id": "haunted_wood",
       "displayName": "Haunted Wood",
       "tier": 2,
-      "prerequisites": ["canifis"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -142,7 +142,7 @@
       "id": "port_phasmatys",
       "displayName": "Port Phasmatys",
       "tier": 3,
-      "prerequisites": ["canifis"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -150,7 +150,7 @@
       "id": "slepe",
       "displayName": "Slepe",
       "tier": 5,
-      "prerequisites": ["canifis"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -158,7 +158,7 @@
       "id": "myreditch",
       "displayName": "Myreditch",
       "tier": 5,
-      "prerequisites": ["canifis"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -166,7 +166,7 @@
       "id": "darkmeyer",
       "displayName": "Darkmeyer",
       "tier": 5,
-      "prerequisites": ["myreditch"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -174,15 +174,15 @@
       "id": "southern_morytania",
       "displayName": "Southern Morytania",
       "tier": 4,
-      "prerequisites": ["canifis"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
       "type": "area",
       "id": "mort_myre_swamp",
       "displayName": "Mort Myre Swamp",
-      "tier": 2,
-      "prerequisites": ["canifis"],
+      "tier": 1,
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -190,7 +190,7 @@
       "id": "grand_exchange",
       "displayName": "Grand Exchange",
       "tier": 5,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -198,7 +198,7 @@
       "id": "edgeville",
       "displayName": "Edgeville",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -206,7 +206,7 @@
       "id": "desert",
       "displayName": "Kharidian Desert",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -214,15 +214,15 @@
       "id": "uzer_desert",
       "displayName": "Uzer Desert",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
       "type": "area",
       "id": "nardah_desert",
       "displayName": "Nardah Desert",
-      "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "tier": 3,
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -230,7 +230,7 @@
       "id": "necropolis",
       "displayName": "Necropolis",
       "tier": 5,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -238,7 +238,7 @@
       "id": "sophanem",
       "displayName": "Sophanem",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -246,7 +246,7 @@
       "id": "polnivneach_desert",
       "displayName": "Polnivneach Desert",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -254,7 +254,7 @@
       "id": "jaldraocht",
       "displayName": "Jaldraocht",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -262,7 +262,7 @@
       "id": "ruins_of_unkah",
       "displayName": "Ruins Of Unkah",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -270,7 +270,7 @@
       "id": "lassar",
       "displayName": "Lassar",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -278,7 +278,7 @@
       "id": "falador",
       "displayName": "Falador",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -286,7 +286,7 @@
       "id": "port_sarim_mudskipper",
       "displayName": "Port Sarim",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -310,7 +310,7 @@
       "id": "musa_point",
       "displayName": "Musa Point",
       "tier": 2,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -318,7 +318,7 @@
       "id": "karamja",
       "displayName": "Karamja",
       "tier": 3,
-      "prerequisites": ["musa_point"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -326,7 +326,7 @@
       "id": "taverley",
       "displayName": "Taverley",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -334,7 +334,7 @@
       "id": "burthorpe",
       "displayName": "Burthorpe",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -342,7 +342,7 @@
       "id": "trollheim",
       "displayName": "Trollheim",
       "tier": 5,
-      "prerequisites": ["burthorpe"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -350,7 +350,7 @@
       "id": "troll_country",
       "displayName": "Troll Country",
       "tier": 2,
-      "prerequisites": ["trollheim"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -366,7 +366,7 @@
       "id": "rellekka",
       "displayName": "Rellekka",
       "tier": 5,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -374,7 +374,7 @@
       "id": "camelot_seers",
       "displayName": "Camelot \u0026 Seers Village",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -382,7 +382,7 @@
       "id": "hemenster",
       "displayName": "Hemenster",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -390,7 +390,7 @@
       "id": "barbarian_waterfall",
       "displayName": "Barbarian Outpost \u0026 Baxtorian Falls",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -398,7 +398,7 @@
       "id": "gnome_stronghold",
       "displayName": "Gnome Stronghold",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -406,7 +406,7 @@
       "id": "piscatoris",
       "displayName": "Piscatoris",
       "tier": 2,
-      "prerequisites": ["gnome_stronghold"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -414,7 +414,7 @@
       "id": "ardougne",
       "displayName": "Ardougne",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -422,7 +422,7 @@
       "id": "khazard_battlegrounds",
       "displayName": "Khazard Battlegrounds",
       "tier": 4,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -430,7 +430,7 @@
       "id": "yanille",
       "displayName": "Yanille",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -446,7 +446,7 @@
       "id": "corsair_cove",
       "displayName": "Corsair Cove",
       "tier": 2,
-      "prerequisites": ["rimmington"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -454,7 +454,7 @@
       "id": "rimmington",
       "displayName": "Rimmington",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -462,7 +462,7 @@
       "id": "isafdar",
       "displayName": "Isafdar",
       "tier": 4,
-      "prerequisites": ["ardougne"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -486,7 +486,7 @@
       "id": "port_piscarilius",
       "displayName": "Port Piscarilius",
       "tier": 4,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -494,7 +494,7 @@
       "id": "arceuus",
       "displayName": "Arceuus",
       "tier": 3,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -502,7 +502,7 @@
       "id": "northern_kourend",
       "displayName": "Northern Kourend",
       "tier": 4,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -510,7 +510,7 @@
       "id": "lovakengj",
       "displayName": "Lovakengj",
       "tier": 3,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -518,7 +518,7 @@
       "id": "kingstown",
       "displayName": "Kingstown",
       "tier": 5,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -526,7 +526,7 @@
       "id": "hosidius",
       "displayName": "Hosidius",
       "tier": 3,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -534,7 +534,7 @@
       "id": "kourend_woodland",
       "displayName": "Kourend Woodland",
       "tier": 2,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -542,7 +542,7 @@
       "id": "shayzien",
       "displayName": "Shayzien",
       "tier": 4,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -550,7 +550,7 @@
       "id": "kebos_lowlands",
       "displayName": "Kebos Lowlands",
       "tier": 4,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -558,7 +558,7 @@
       "id": "kebos_swamp",
       "displayName": "Kebos Swamp",
       "tier": 5,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -566,7 +566,7 @@
       "id": "custodia_mountains",
       "displayName": "Custodia Mountains",
       "tier": 3,
-      "prerequisites": ["port_sarim_mudskipper"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -574,7 +574,7 @@
       "id": "auburnvale",
       "displayName": "Auburnvale",
       "tier": 3,
-      "prerequisites": ["eastern_varlamore"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -582,7 +582,7 @@
       "id": "tlati_rainforest",
       "displayName": "Tlati Rainforest",
       "tier": 4,
-      "prerequisites": ["eastern_varlamore"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -590,7 +590,7 @@
       "id": "proudspire",
       "displayName": "Proudspire",
       "tier": 4,
-      "prerequisites": ["eastern_varlamore"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -598,7 +598,7 @@
       "id": "western_varlamore",
       "displayName": "Western Varlamore",
       "tier": 4,
-      "prerequisites": ["eastern_varlamore"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -614,7 +614,7 @@
       "id": "aldarin",
       "displayName": "Aldarin",
       "tier": 2,
-      "prerequisites": ["eastern_varlamore"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -718,7 +718,7 @@
       "id": "mos_le_harmless",
       "displayName": "Mos Le'Harmless",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -726,7 +726,7 @@
       "id": "catherby",
       "displayName": "Catherby",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": [],
       "taskLink": { "type": "area" }
     },
     {
@@ -2798,7 +2798,7 @@
       "id": "recipe_for_disaster",
       "displayName": "Recipe for Disaster",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": ["lumbridge, cooks_assistant"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Recipe for Disaster" }
     },
     {
@@ -3150,7 +3150,7 @@
       "id": "recipe_for_disaster_freeing_pirate_pete",
       "displayName": "Recipe for Disaster/Freeing Pirate Pete",
       "tier": 3,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": ["lumbridge", "skippy_and_the_mogres"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Recipe for Disaster/Freeing Pirate Pete" }
     },
     {
@@ -3694,7 +3694,7 @@
       "id": "the_generals_shadow",
       "displayName": "The General's Shadow",
       "tier": 3,
-      "prerequisites": [],
+      "prerequisites": ["desert_treasure_i"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "The General's Shadow" }
     },
     {
@@ -3718,7 +3718,7 @@
       "id": "curse_of_the_empty_lord",
       "displayName": "Curse of the Empty Lord",
       "tier": 3,
-      "prerequisites": [],
+      "prerequisites": ["desert_treasure_i"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Curse of the Empty Lord" }
     },
     {
@@ -3726,7 +3726,7 @@
       "id": "lair_of_tarn_razorlor",
       "displayName": "Lair of Tarn Razorlor",
       "tier": 3,
-      "prerequisites": ["southern_morytania"],
+      "prerequisites": ["southern_morytania", "the_haunted_mine"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Lair of Tarn Razorlor" }
     },
     {
@@ -3826,8 +3826,8 @@
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Vale Totems" }
     },
     { "type": "boss", "id": "brutus", "displayName": "Brutus", "tier": 1, "cost": 15, "prerequisites": ["Ides of Milk"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Brutus" } },
-    { "type": "boss", "id": "barrows", "displayName": "Barrows", "tier": 1, "cost": 15, "prerequisites": ["Priest in Peril"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Barrows" } },
-    { "type": "boss", "id": "gemstone_crab", "displayName": "Gemstone Crab", "tier": 1, "cost": 15, "prerequisites": ["Children of the Sun"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Gemstone Crab" } },
+    { "type": "boss", "id": "barrows", "displayName": "Barrows", "tier": 1, "cost": 15, "prerequisites": ["southern_morytania"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Barrows" } },
+    { "type": "boss", "id": "gemstone_crab", "displayName": "Gemstone Crab", "tier": 1, "cost": 15, "prerequisites": ["tlati_rainforest"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Gemstone Crab" } },
     { "type": "boss", "id": "scurrius", "displayName": "Scurrius", "tier": 1, "cost": 15, "prerequisites": ["varrock"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Scurrius" } },
     { "type": "boss", "id": "calvarion_vetion", "displayName": "Calvar'ion & Vet'ion", "tier": 2, "cost": 35, "prerequisites": ["wilderness_medium"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Calvar'ion" } },
     { "type": "boss", "id": "spindel_venenatis", "displayName": "Spindel & Venenatis", "tier": 3, "cost": 75, "prerequisites": ["wilderness_medium"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Venenatis" } },
@@ -3859,7 +3859,7 @@
     { "type": "boss", "id": "alchemical_hydra", "displayName": "Alchemical Hydra", "tier": 5, "cost": 71255, "prerequisites": ["slayer_91_100"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Alchemical Hydra" } },
     { "type": "boss", "id": "crystalline_hunllef", "displayName": "Crystalline Hunllef", "tier": 4, "cost": 100, "prerequisites": ["Song of the Elves"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Crystalline Hunllef" } },
     { "type": "boss", "id": "corrupted_hunllef", "displayName": "Corrupted Hunllef", "tier": 5, "cost": 125, "prerequisites": ["Song of the Elves"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Corrupted Hunllef" } },
-    { "type": "boss", "id": "tztok_jad", "displayName": "TzTok-Jad", "tier": 2, "cost": 35, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "TzTok-Jad" } },
+    { "type": "boss", "id": "tztok_jad", "displayName": "TzTok-Jad", "tier": 2, "cost": 35, "prerequisites": ["musa_point"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "TzTok-Jad" } },
     { "type": "boss", "id": "tzkal_zuk", "displayName": "TzKal-Zuk", "tier": 5, "cost": 125, "prerequisites": ["Fire cape"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "TzKal-Zuk" } },
     { "type": "boss", "id": "sol_heredit", "displayName": "Sol Heredit", "tier": 5, "cost": 125, "prerequisites": ["Children of the Sun"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Sol Heredit" } },
     { "type": "boss", "id": "tempoross", "displayName": "Tempoross", "tier": 1, "cost": 15, "prerequisites": ["ruins_of_unkah"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Tempoross" } },
@@ -3868,7 +3868,7 @@
     { "type": "boss", "id": "chambers_of_xeric", "displayName": "Chambers of Xeric", "tier": 5, "cost": 125, "prerequisites": ["kebos_swamp"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Chambers of Xeric" } },
     { "type": "boss", "id": "theatre_of_blood", "displayName": "Theatre of Blood", "tier": 5, "cost": 125, "prerequisites": ["myreditch"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Theatre of Blood" } },
     { "type": "boss", "id": "tombs_of_amascut", "displayName": "Tombs of Amascut", "tier": 5, "cost": 125, "prerequisites": ["necropolis"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Tombs of Amascut" } },
-    { "type": "achievement_diary", "id": "lumbridge_draynor_easy", "displayName": "Lumbridge & Draynor (Easy)", "tier": 1, "cost": 15, "prerequisites": ["lumbridge", "draynor"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Lumbridge", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "lumbridge_draynor_easy", "displayName": "Lumbridge & Draynor (Easy)", "tier": 1, "cost": 15, "prerequisites": ["lumbridge"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Lumbridge", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "lumbridge_draynor_medium", "displayName": "Lumbridge & Draynor (Medium)", "tier": 2, "cost": 35, "prerequisites": ["lumbridge_draynor_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Lumbridge", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "lumbridge_draynor_hard", "displayName": "Lumbridge & Draynor (Hard)", "tier": 3, "cost": 75, "prerequisites": ["lumbridge_draynor_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Lumbridge", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "lumbridge_draynor_elite", "displayName": "Lumbridge & Draynor (Elite)", "tier": 4, "cost": 100, "prerequisites": ["lumbridge_draynor_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Lumbridge", "difficulty": 4 } },
@@ -3880,39 +3880,39 @@
     { "type": "achievement_diary", "id": "desert_medium", "displayName": "Desert (Medium)", "tier": 2, "cost": 35, "prerequisites": ["desert_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Al Kharid", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "desert_hard", "displayName": "Desert (Hard)", "tier": 3, "cost": 75, "prerequisites": ["desert_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Al Kharid", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "desert_elite", "displayName": "Desert (Elite)", "tier": 4, "cost": 100, "prerequisites": ["desert_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Al Kharid", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "falador_easy", "displayName": "Falador (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Falador", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "falador_easy", "displayName": "Falador (Easy)", "tier": 1, "cost": 15, "prerequisites": ["falador"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Falador", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "falador_medium", "displayName": "Falador (Medium)", "tier": 2, "cost": 35, "prerequisites": ["falador_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Falador", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "falador_hard", "displayName": "Falador (Hard)", "tier": 3, "cost": 75, "prerequisites": ["falador_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Falador", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "falador_elite", "displayName": "Falador (Elite)", "tier": 4, "cost": 100, "prerequisites": ["falador_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Falador", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "fremennik_easy", "displayName": "Fremennik (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Fremennik", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "fremennik_easy", "displayName": "Fremennik (Easy)", "tier": 1, "cost": 15, "prerequisites": ["rellekka"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Fremennik", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "fremennik_medium", "displayName": "Fremennik (Medium)", "tier": 2, "cost": 35, "prerequisites": ["fremennik_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Fremennik", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "fremennik_hard", "displayName": "Fremennik (Hard)", "tier": 3, "cost": 75, "prerequisites": ["fremennik_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Fremennik", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "fremennik_elite", "displayName": "Fremennik (Elite)", "tier": 4, "cost": 100, "prerequisites": ["fremennik_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Fremennik", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "kandarin_easy", "displayName": "Kandarin (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kandarin", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "kandarin_easy", "displayName": "Kandarin (Easy)", "tier": 1, "cost": 15, "prerequisites": ["camelot_seers"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kandarin", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "kandarin_medium", "displayName": "Kandarin (Medium)", "tier": 2, "cost": 35, "prerequisites": ["kandarin_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kandarin", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "kandarin_hard", "displayName": "Kandarin (Hard)", "tier": 3, "cost": 75, "prerequisites": ["kandarin_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kandarin", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "kandarin_elite", "displayName": "Kandarin (Elite)", "tier": 4, "cost": 100, "prerequisites": ["kandarin_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kandarin", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "karamja_easy", "displayName": "Karamja (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Karamja", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "karamja_easy", "displayName": "Karamja (Easy)", "tier": 1, "cost": 15, "prerequisites": ["musa_point"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Karamja", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "karamja_medium", "displayName": "Karamja (Medium)", "tier": 2, "cost": 35, "prerequisites": ["karamja_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Karamja", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "karamja_hard", "displayName": "Karamja (Hard)", "tier": 3, "cost": 75, "prerequisites": ["karamja_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Karamja", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "karamja_elite", "displayName": "Karamja (Elite)", "tier": 4, "cost": 100, "prerequisites": ["karamja_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Karamja", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "kourend_kebos_easy", "displayName": "Kourend & Kebos (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kourend", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "kourend_kebos_easy", "displayName": "Kourend & Kebos (Easy)", "tier": 1, "cost": 15, "prerequisites": ["kingstown"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kourend", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "kourend_kebos_medium", "displayName": "Kourend & Kebos (Medium)", "tier": 2, "cost": 35, "prerequisites": ["kourend_kebos_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kourend", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "kourend_kebos_hard", "displayName": "Kourend & Kebos (Hard)", "tier": 3, "cost": 75, "prerequisites": ["kourend_kebos_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kourend", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "kourend_kebos_elite", "displayName": "Kourend & Kebos (Elite)", "tier": 4, "cost": 100, "prerequisites": ["kourend_kebos_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Kourend", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "morytania_easy", "displayName": "Morytania (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Morytania", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "morytania_easy", "displayName": "Morytania (Easy)", "tier": 1, "cost": 15, "prerequisites": ["canifis"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Morytania", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "morytania_medium", "displayName": "Morytania (Medium)", "tier": 2, "cost": 35, "prerequisites": ["morytania_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Morytania", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "morytania_hard", "displayName": "Morytania (Hard)", "tier": 3, "cost": 75, "prerequisites": ["morytania_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Morytania", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "morytania_elite", "displayName": "Morytania (Elite)", "tier": 4, "cost": 100, "prerequisites": ["morytania_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Morytania", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "western_provinces_easy", "displayName": "Western Provinces (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Western", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "western_provinces_easy", "displayName": "Western Provinces (Easy)", "tier": 1, "cost": 15, "prerequisites": ["gnome_stronghold"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Western", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "western_provinces_medium", "displayName": "Western Provinces (Medium)", "tier": 2, "cost": 35, "prerequisites": ["western_provinces_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Western", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "western_provinces_hard", "displayName": "Western Provinces (Hard)", "tier": 3, "cost": 75, "prerequisites": ["western_provinces_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Western", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "western_provinces_elite", "displayName": "Western Provinces (Elite)", "tier": 4, "cost": 100, "prerequisites": ["western_provinces_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Western", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "wilderness_easy", "displayName": "Wilderness (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Wilderness", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "wilderness_easy", "displayName": "Wilderness (Easy)", "tier": 1, "cost": 15, "prerequisites": ["edgeville"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Wilderness", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "wilderness_medium", "displayName": "Wilderness (Medium)", "tier": 2, "cost": 35, "prerequisites": ["wilderness_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Wilderness", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "wilderness_hard", "displayName": "Wilderness (Hard)", "tier": 3, "cost": 75, "prerequisites": ["wilderness_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Wilderness", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "wilderness_elite", "displayName": "Wilderness (Elite)", "tier": 4, "cost": 100, "prerequisites": ["wilderness_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Wilderness", "difficulty": 4 } },
-    { "type": "achievement_diary", "id": "ardougne_easy", "displayName": "Ardougne (Easy)", "tier": 1, "cost": 15, "prerequisites": [], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Ardougne", "difficulty": 1 } },
+    { "type": "achievement_diary", "id": "ardougne_easy", "displayName": "Ardougne (Easy)", "tier": 1, "cost": 15, "prerequisites": ["ardougne"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Ardougne", "difficulty": 1 } },
     { "type": "achievement_diary", "id": "ardougne_medium", "displayName": "Ardougne (Medium)", "tier": 2, "cost": 35, "prerequisites": ["ardougne_easy"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Ardougne", "difficulty": 2 } },
     { "type": "achievement_diary", "id": "ardougne_hard", "displayName": "Ardougne (Hard)", "tier": 3, "cost": 75, "prerequisites": ["ardougne_medium"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Ardougne", "difficulty": 3 } },
     { "type": "achievement_diary", "id": "ardougne_elite", "displayName": "Ardougne (Elite)", "tier": 4, "cost": 100, "prerequisites": ["ardougne_hard"], "taskLink": { "type": "taskFilter", "taskType": "Achievement Diary", "requirementsContains": "Ardougne", "difficulty": 4 } }

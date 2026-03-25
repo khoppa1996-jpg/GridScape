@@ -15,8 +15,6 @@ import com.google.gson.reflect.TypeToken;
 import com.leaguescape.LeagueScapeConfig;
 import com.leaguescape.LeagueScapePlugin;
 import com.leaguescape.area.AreaGraphService;
-import com.leaguescape.util.LeagueScapeConfigConstants;
-import com.leaguescape.util.ResourcePaths;
 import com.leaguescape.points.AreaCompletionService;
 import com.leaguescape.points.PointsService;
 import java.io.InputStream;
@@ -52,7 +50,7 @@ import org.slf4j.LoggerFactory;
 public class TaskGridService
 {
 	private static final Logger log = LoggerFactory.getLogger(TaskGridService.class);
-	private static final String STATE_GROUP = LeagueScapeConfigConstants.STATE_GROUP;
+	private static final String STATE_GROUP = "leaguescapeState";
 	private static final String KEY_PREFIX = "taskProgress_";
 	private static final String SUFFIX_CLAIMED = "_claimed";
 	private static final String SUFFIX_COMPLETED = "_completed";
@@ -63,15 +61,12 @@ public class TaskGridService
 	private static final int MIN_TASKS_PER_AREA = 100;
 	/** Maximum number of tasks in the pool for each area's task panel (cap after prioritizing area-specific then filler). */
 	private static final int MAX_TASKS_PER_AREA = 400;
+	private static final String TASKS_RESOURCE = "/tasks.json";
 	private static final String KEY_TASKS_OVERRIDE = "tasksJsonOverride";
 	private static final String KEY_CUSTOM_TASKS = "customTasksJson";
 	private static final String KEY_GRID_RESET_COUNTER = "taskGridResetCounter";
 
-	/**
-	 * Custom Gson deserializer for TaskDefinition. Normalizes "area" so that comma-separated
-	 * strings and JSON arrays are always mapped into a single area id or into {@link TaskDefinition#getAreas()};
-	 * {@link TaskDefinition#getRequiredAreaIds()} is the single source of truth for area restriction.
-	 */
+	/** Custom Gson deserializer for TaskDefinition: reads displayName, taskType, difficulty, area (string or array), f2p. */
 	private static final JsonDeserializer<TaskDefinition> TASK_DESERIALIZER = new JsonDeserializer<TaskDefinition>()
 	{
 		@Override
@@ -82,7 +77,7 @@ public class TaskGridService
 			if (obj.has("displayName")) def.setDisplayName(obj.get("displayName").getAsString());
 			if (obj.has("taskType")) def.setTaskType(obj.get("taskType").getAsString());
 			if (obj.has("difficulty")) def.setDifficulty(obj.get("difficulty").getAsInt());
-			// area: split by comma and treat as list — single id -> setArea(), multiple -> setAreas()
+			// area: comma-separated string (e.g. "lumbridge, draynor, varrock") or legacy JSON array
 			if (obj.has("area"))
 			{
 				JsonElement areaEl = obj.get("area");
@@ -140,12 +135,7 @@ public class TaskGridService
 
 	private static final java.lang.reflect.Type LIST_TASK_DEFINITION = new TypeToken<List<TaskDefinition>>(){}.getType();
 
-	/**
-	 * Parses JSON from the stream into TasksData. Accepts: root array {@code [ ... ]};
-	 * object with {@code "defaultTasks": [...]}; or object with {@code "objects": [...]}
-	 * (e.g. external editor format). In all cases, each task's "area" is split by comma and
-	 * mapped to a single area or an areas list via the custom deserializer.
-	 */
+	/** Parses JSON from the stream into TasksData. Accepts both root array {@code [ ... ]} and object {@code {"defaultTasks": [...]}. */
 	private static TasksData parseTasksDataFromStream(InputStream in) throws Exception
 	{
 		JsonElement root = new JsonParser().parse(new InputStreamReader(in, StandardCharsets.UTF_8));
@@ -156,22 +146,6 @@ public class TaskGridService
 			TasksData data = new TasksData();
 			data.setDefaultTasks(list != null ? list : new ArrayList<>());
 			return data;
-		}
-		if (root.isJsonObject())
-		{
-			JsonObject obj = root.getAsJsonObject();
-			if (obj.has("objects") && !obj.has("defaultTasks"))
-			{
-				// External format (e.g. "objects" array): use same deserializer so "area" is split by comma -> areas
-				JsonElement tasksArray = obj.get("objects");
-				if (tasksArray.isJsonArray())
-				{
-					List<TaskDefinition> list = GSON.fromJson(tasksArray, LIST_TASK_DEFINITION);
-					TasksData data = new TasksData();
-					data.setDefaultTasks(list != null ? list : new ArrayList<>());
-					return data;
-				}
-			}
 		}
 		return GSON.fromJson(root, TasksData.class);
 	}
@@ -189,9 +163,6 @@ public class TaskGridService
 
 	private volatile TasksData tasksData;
 
-	/** Cache: parsed quest_tasks.json. Cleared when tasks cache is invalidated. */
-	private volatile List<TaskDefinition> questTasksCache;
-
 	/** Cache: task key -> area id for onceOnly tasks. Cleared when tasks cache is invalidated. */
 	private volatile Map<String, String> onceOnlyAssignmentCache;
 
@@ -202,7 +173,6 @@ public class TaskGridService
 	public void invalidateTasksCache()
 	{
 		tasksData = null;
-		questTasksCache = null;
 		onceOnlyAssignmentCache = null;
 	}
 
@@ -257,7 +227,7 @@ public class TaskGridService
 				}
 			}
 			// 2) Fall back to built-in resource
-			try (InputStream in = LeagueScapePlugin.class.getResourceAsStream(ResourcePaths.TASKS_JSON))
+			try (InputStream in = LeagueScapePlugin.class.getResourceAsStream(TASKS_RESOURCE))
 			{
 				if (in != null)
 				{
@@ -336,52 +306,17 @@ public class TaskGridService
 		return data.getDefaultTasks() != null ? new ArrayList<>(data.getDefaultTasks()) : new ArrayList<>();
 	}
 
-	/** Effective task set: base defaultTasks + quest tasks (Point buy / Point to complete only) + custom tasks, and base areas. Used for grid and export. */
+	/** Effective task set: base defaultTasks + custom tasks, and base areas. Used for grid and export. */
 	private TasksData getEffectiveTasksData()
 	{
 		TasksData base = loadBaseTasksData();
-		List<TaskDefinition> questTasks = loadQuestTasks();
 		List<TaskDefinition> custom = loadCustomTasksFromConfig();
 		TasksData result = new TasksData();
 		List<TaskDefinition> combined = new ArrayList<>(base.getDefaultTasks() != null ? base.getDefaultTasks() : new ArrayList<>());
-		combined.addAll(questTasks);
 		combined.addAll(custom);
 		result.setDefaultTasks(combined);
 		result.setAreas(base.getAreas() != null ? new java.util.HashMap<>(base.getAreas()) : new java.util.HashMap<>());
 		return result;
-	}
-
-	/** Loads Quest tasks from built-in quest_tasks.json (cached). These have taskType "Quest" and populate only in Point buy / Point to complete (excluded from World Unlock global list). */
-	private List<TaskDefinition> loadQuestTasks()
-	{
-		List<TaskDefinition> cached = questTasksCache;
-		if (cached != null)
-			return new ArrayList<>(cached);
-		synchronized (this)
-		{
-			if (questTasksCache != null)
-				return new ArrayList<>(questTasksCache);
-			List<TaskDefinition> list = new ArrayList<>();
-			try (InputStream in = LeagueScapePlugin.class.getResourceAsStream(ResourcePaths.QUEST_TASKS_JSON))
-			{
-				if (in != null)
-				{
-					JsonElement root = new JsonParser().parse(new InputStreamReader(in, StandardCharsets.UTF_8));
-					if (root != null && root.isJsonArray())
-					{
-						List<TaskDefinition> parsed = GSON.fromJson(root, LIST_TASK_DEFINITION);
-						if (parsed != null)
-							list = parsed;
-					}
-				}
-			}
-			catch (Exception e)
-			{
-				log.debug("LeagueScape could not load quest tasks from {}: {}", ResourcePaths.QUEST_TASKS_JSON, e.getMessage());
-			}
-			questTasksCache = list;
-			return new ArrayList<>(list);
-		}
 	}
 
 	// --- Task config API (import, export, custom tasks) ---
@@ -1257,55 +1192,11 @@ public class TaskGridService
 		Set<String> claimed = loadSet(areaId, SUFFIX_CLAIMED);
 		if (claimed.contains(taskId)) return;
 
-		Set<String> completed = loadSet(areaId, SUFFIX_COMPLETED);
 		List<TaskTile> grid = getGridForArea(areaId);
 		TaskTile tile = grid.stream().filter(t -> t.getId().equals(taskId)).findFirst().orElse(null);
-		if (tile != null && tile.getRequirements() != null && !tile.getRequirements().isEmpty())
-		{
-			String req = tile.getRequirements().trim();
-			boolean hasQuestReq = req.equalsIgnoreCase("100% Quest Completion");
-			if (!hasQuestReq)
-			{
-				for (String name : parseQuestNamesFromRequirements(req))
-				{
-					if (findQuestByName(name) != null)
-					{
-						hasQuestReq = true;
-						break;
-					}
-				}
-			}
-
-			// Quest requirements: require quests finished (legacy behavior)
-			if (hasQuestReq)
-			{
-				if (!areQuestRequirementsMet(req))
-					return;
-			}
-			else
-			{
-				// Non-quest requirements: treat as prerequisite task displayName(s). A prerequisite is satisfied if it is revealed (not LOCKED) in this area's grid.
-				for (String part : req.split(","))
-				{
-					String token = part.trim();
-					if (token.isEmpty()) continue;
-					TaskTile prereqTile = grid.stream()
-						.filter(t -> t.getDisplayName() != null && t.getDisplayName().trim().equalsIgnoreCase(token))
-						.findFirst()
-						.orElse(null);
-					if (prereqTile == null) continue;
-
-					String prereqId = prereqTile.getId();
-					boolean prereqRevealed =
-						"0,0".equals(prereqId)
-							|| claimed.contains(prereqId)
-							|| completed.contains(prereqId)
-							|| isRevealed(prereqId, claimed, grid);
-					if (!prereqRevealed)
-						return;
-				}
-			}
-		}
+		if (tile != null && tile.getRequirements() != null && !tile.getRequirements().isEmpty()
+			&& !areQuestRequirementsMet(tile.getRequirements()))
+			return;
 
 		claimed.add(taskId);
 		saveSet(areaId, SUFFIX_CLAIMED, claimed);

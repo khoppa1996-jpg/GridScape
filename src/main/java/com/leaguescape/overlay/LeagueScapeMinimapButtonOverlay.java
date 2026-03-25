@@ -75,9 +75,9 @@ public class LeagueScapeMinimapButtonOverlay extends Overlay implements MouseLis
 		}
 		else
 		{
-			graphics.setColor(com.leaguescape.util.LeagueScapeColors.POPUP_BG);
+			graphics.setColor(new java.awt.Color(0x54, 0x4D, 0x41));
 			graphics.fillRect(x, y, BUTTON_SIZE, BUTTON_SIZE);
-			graphics.setColor(com.leaguescape.util.LeagueScapeColors.POPUP_TEXT);
+			graphics.setColor(new java.awt.Color(0xC4, 0xB8, 0x96));
 			graphics.drawRect(x, y, BUTTON_SIZE, BUTTON_SIZE);
 			graphics.drawString("L", x + 10, y + 20);
 		}

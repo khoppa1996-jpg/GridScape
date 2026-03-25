@@ -228,31 +228,4 @@ public class GlobalTaskListServiceTest
 		assertTrue("Fallback should use any tasks when no-area is empty, got " + grid.size(),
 			grid.size() >= 2);
 	}
-
-	@Test
-	public void testIsStarterAreaUnlockedOnGridReturnsFalseWhenStarterNotUnlocked()
-	{
-		when(config.startingArea()).thenReturn("lumbridge");
-		when(worldUnlockService.getUnlockedIds()).thenReturn(Collections.emptySet());
-
-		assertFalse(service.isStarterAreaUnlockedOnGrid());
-	}
-
-	@Test
-	public void testIsStarterAreaUnlockedOnGridReturnsFalseWhenStarterAreaConfigEmpty()
-	{
-		when(config.startingArea()).thenReturn("");
-		when(worldUnlockService.getUnlockedIds()).thenReturn(Collections.singleton("lumbridge"));
-
-		assertFalse(service.isStarterAreaUnlockedOnGrid());
-	}
-
-	@Test
-	public void testIsStarterAreaUnlockedOnGridReturnsTrueWhenStarterUnlocked()
-	{
-		when(config.startingArea()).thenReturn("lumbridge");
-		when(worldUnlockService.getUnlockedIds()).thenReturn(new HashSet<>(Arrays.asList("lumbridge", "varrock")));
-
-		assertTrue(service.isStarterAreaUnlockedOnGrid());
-	}
 }

@@ -191,7 +191,9 @@ public class LeagueScapePlugin extends Plugin
 	}
 
 	/**
-	 * If the current account (by username) has never been shown the Rules & Setup panel, open it centered on the game client and mark as shown.
+	 * Opens Rules and Setup once per RuneScape account the first time the plugin runs with that account.
+	 * Called after startup and again when the client reaches {@link net.runelite.api.GameState#LOGGED_IN} so it still runs
+	 * if the plugin was enabled before login (username may be unavailable until then).
 	 */
 	private void tryOpenSetupForFirstTime()
 	{
@@ -446,8 +448,8 @@ public class LeagueScapePlugin extends Plugin
 	 */
 	public void resetProgress()
 	{
-		pointsService.setStartingPoints(0);
-		// Clear unlocks. In World Unlock mode, starter stays locked until unlocked on the grid.
+		pointsService.setStartingPoints(config.startingPoints());
+		// World Unlock: no areas on the map until the player unlocks them on the grid (full reset).
 		if (config.unlockMode() == LeagueScapeConfig.UnlockMode.WORLD_UNLOCK)
 		{
 			configManager.setConfiguration(STATE_GROUP, KEY_UNLOCKED_AREAS, "");
@@ -663,7 +665,7 @@ public class LeagueScapePlugin extends Plugin
 			javax.swing.JDialog dialog = new javax.swing.JDialog(owner, "Global tasks", false);
 			dialog.setUndecorated(true);
 			com.leaguescape.worldunlock.GlobalTaskListPanel panel = new com.leaguescape.worldunlock.GlobalTaskListPanel(
-				globalTaskListService, pointsService, dialog::dispose, this::openSetupDialog, client, audioPlayer, clientThread, dialog);
+				globalTaskListService, pointsService, dialog::dispose, this::openWorldUnlockGrid, this::openSetupDialog, client, audioPlayer, clientThread, dialog);
 			dialog.setContentPane(panel);
 			dialog.pack();
 			dialog.setLocationRelativeTo(client.getCanvas());
@@ -710,8 +712,13 @@ public class LeagueScapePlugin extends Plugin
 	/** Adds an area to the unlocked set and persists. Used after unlocking a World Unlock tile for an area so the map overlay stays in sync. */
 	public void addUnlockedAreaId(String areaId)
 	{
+		boolean alreadyUnlocked = areaGraphService.getUnlockedAreaIds().contains(areaId);
 		areaGraphService.addUnlocked(areaId);
 		persistUnlockedAreas();
+		if (!alreadyUnlocked && config.unlockMode() == LeagueScapeConfig.UnlockMode.WORLD_UNLOCK)
+		{
+			globalTaskListService.resetRepeatableSkillTaskProgressAfterAreaUnlock();
+		}
 	}
 
 	// --- Area config editing API (used by LeagueScapeConfigPanel, AreaEditOverlay, LeagueScapeMapOverlay) ---

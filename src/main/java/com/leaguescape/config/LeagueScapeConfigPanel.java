@@ -6,15 +6,9 @@ import com.leaguescape.area.AreaGraphService;
 import com.leaguescape.data.Area;
 import com.leaguescape.task.TaskDefinition;
 import com.leaguescape.task.TaskGridService;
-import com.leaguescape.wiki.OsrsWikiApiService;
-import com.leaguescape.wiki.WikiTaskGenerator;
-import com.leaguescape.wiki.WikiTaskSource;
 import net.runelite.client.config.ConfigManager;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.Frame;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -22,92 +16,101 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import javax.swing.BoxLayout;
-import javax.swing.DefaultListModel;
 import javax.swing.JFileChooser;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JTable;
 import javax.swing.JToggleButton;
 import javax.swing.JComboBox;
 import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.ListSelectionModel;
 import javax.swing.Scrollable;
 import javax.swing.SpinnerNumberModel;
-import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableModel;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
 import java.awt.Container;
 import java.awt.Rectangle;
 
-/**
- * LeagueScape config/setup panel: area list (edit, remove, restore), "Make hole" for subtracting
- * regions from areas, task system settings (task mode, tier points, tasks file path),
- * task list with import/export and custom task add/edit (display name, type, difficulty, f2p, areas).
- * Areas and tasks are persisted via ConfigManager and AreaGraphService/TaskGridService. Opening
- * the panel does not reload areas/tasks from file until the user triggers reload or save.
- */
 public class LeagueScapeConfigPanel extends PluginPanel
 {
-	private static final String CONFIG_GROUP = com.leaguescape.util.LeagueScapeConfigConstants.CONFIG_GROUP;
-
-	/** Normalizes "Diary" / "Achievement diary" to "Achievement Diary" for display and save. */
-	private static String normalizeAchievementDiaryTaskType(String taskType)
+	/** Panel that stays within scroll viewport width (no horizontal scroll). */
+	private static class ScrollableWidthPanel extends JPanel implements Scrollable
 	{
-		if (taskType == null || taskType.isEmpty()) return taskType;
-		String t = taskType.trim();
-		if ("Diary".equalsIgnoreCase(t) || "Achievement diary".equalsIgnoreCase(t)) return "Achievement Diary";
-		return taskType;
+		@Override
+		public boolean getScrollableTracksViewportWidth() { return true; }
+		@Override
+		public boolean getScrollableTracksViewportHeight() { return false; }
+		@Override
+		public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+		@Override
+		public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) { return 10; }
+		@Override
+		public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) { return visibleRect.height; }
 	}
 
-	private static final String[] TASK_TYPE_PRESETS = {
-		"Achievement Diary", "Activity", "Quest", "Other", "Level", "Equipment", "Collection Log", "Clue Scroll", "Combat",
-		"Agility", "Cooking", "Crafting", "Farming", "Firemaking", "Fletching", "Fishing", "Herblore", "Hunter",
-		"Magic", "Mining", "Prayer", "Runecraft", "Slayer", "Smithing", "Sailing", "Thieving", "Woodcutting"
-	};
+	private static JPanel newScrollableTrackWidthPanel()
+	{
+		return new ScrollableWidthPanel();
+	}
+
+	/** Builds a collapsible section: header (title + ▼/▶) and content panel. If headerOut is non-null, stores the header for external expand/collapse. */
+	private JPanel createCollapsibleSection(String title, JPanel content, boolean expandedByDefault, JToggleButton[] headerOut)
+	{
+		JPanel wrapper = new JPanel(new BorderLayout());
+		wrapper.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+		JToggleButton header = new JToggleButton(expandedByDefault ? "▼ " + title : "▶ " + title, expandedByDefault);
+		header.setFocusPainted(false);
+		header.setBorderPainted(false);
+		header.setContentAreaFilled(false);
+		header.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
+		content.setVisible(expandedByDefault);
+		final String titleFinal = title;
+		header.addActionListener(e -> {
+			boolean on = header.isSelected();
+			content.setVisible(on);
+			header.setText(on ? "▼ " + titleFinal : "▶ " + titleFinal);
+			wrapper.revalidate();
+			// Propagate revalidation up so the scroll pane view recalculates and the section returns to full height when expanded
+			for (Container p = wrapper.getParent(); p != null; p = p.getParent())
+			{
+				p.revalidate();
+			}
+			wrapper.repaint();
+		});
+		wrapper.add(header, BorderLayout.NORTH);
+		wrapper.add(content, BorderLayout.CENTER);
+		if (headerOut != null && headerOut.length > 0)
+			headerOut[0] = header;
+		return wrapper;
+	}
+
+	private static final String CONFIG_GROUP = "leaguescape";
 
 	private final LeagueScapePlugin plugin;
 	private final AreaGraphService areaGraphService;
 	private final TaskGridService taskGridService;
 	private final ConfigManager configManager;
 	private final LeagueScapeConfig config;
-	private final OsrsWikiApiService wikiApi;
-	private final WikiTaskGenerator wikiTaskGenerator;
-	private final ExecutorService helperExecutor = Executors.newSingleThreadExecutor(r -> {
-		Thread t = new Thread(r, "LeagueScape-TaskHelper");
-		t.setDaemon(true);
-		return t;
-	});
 
 	private JPanel mainPanel;
 	private JPanel listPanel;
 	private JPanel removedPanel;
 	private JPanel editPanel;
-	private JPanel makeHoleSectionPanel;
+	private JPanel makeHoleSectionContent;
 	private JToggleButton makeHoleSectionHeader;
 	private JToggleButton editSectionHeader;
 	private JTextField idField;
 	private JTextField displayNameField;
 	private JTextArea descriptionField;
 	private JPanel cornersPanel;
+	private JPanel makeHolePanel;
 	private JComboBox<String> makeHoleOuterCombo;
 	private JComboBox<String> makeHoleInnerCombo;
 	private JLabel holesCountLabel;
@@ -126,23 +129,17 @@ public class LeagueScapeConfigPanel extends PluginPanel
 	private JTextField taskDisplayNameField;
 	private JTextField taskTypeField;
 	private JSpinner taskDifficultySpinner;
-	private JCheckBox taskF2pCheckBox;
 	private JPanel taskAreasPanel;
-	private JTextField taskRequirementsField;
-	private JComboBox<String> taskAreaRequirementCombo;
-	private JCheckBox taskOnceOnlyCheckBox;
 	private int editingTaskIndex = -1;
 
 	public LeagueScapeConfigPanel(LeagueScapePlugin plugin, AreaGraphService areaGraphService, TaskGridService taskGridService,
-		ConfigManager configManager, LeagueScapeConfig config, OsrsWikiApiService wikiApi, WikiTaskGenerator wikiTaskGenerator)
+		ConfigManager configManager, LeagueScapeConfig config)
 	{
 		this.plugin = plugin;
 		this.areaGraphService = areaGraphService;
 		this.taskGridService = taskGridService;
 		this.configManager = configManager;
 		this.config = config;
-		this.wikiApi = wikiApi;
-		this.wikiTaskGenerator = wikiTaskGenerator;
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(6, 6, 6, 6));
 
@@ -169,69 +166,52 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		add(topSection, BorderLayout.NORTH);
 
 		// Scrollable content: collapsible sections for area list, removed list, edit form.
-		mainPanel = com.leaguescape.util.LeagueScapeSwingUtil.newScrollableTrackWidthPanel();
+		mainPanel = new ScrollableWidthPanel();
 		mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
 
-		listPanel = com.leaguescape.util.LeagueScapeSwingUtil.newScrollableTrackWidthPanel();
+		listPanel = newScrollableTrackWidthPanel();
 		listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
 		JScrollPane listScroll = new JScrollPane(listPanel);
 		listScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		JPanel areasContent = new JPanel(new BorderLayout());
 		areasContent.add(listScroll, BorderLayout.CENTER);
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Areas", areasContent, true, null));
+		mainPanel.add(createCollapsibleSection("Areas", areasContent, true, null));
 
 		mainPanel.add(new JLabel(" "));
-		removedPanel = com.leaguescape.util.LeagueScapeSwingUtil.newScrollableTrackWidthPanel();
+		removedPanel = newScrollableTrackWidthPanel();
 		removedPanel.setLayout(new BoxLayout(removedPanel, BoxLayout.Y_AXIS));
 		JScrollPane removedScroll = new JScrollPane(removedPanel);
 		removedScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		JPanel removedContent = new JPanel(new BorderLayout());
 		removedContent.add(removedScroll, BorderLayout.CENTER);
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Removed areas (Restore to add back)", removedContent, false, null));
+		mainPanel.add(createCollapsibleSection("Removed areas (Restore to add back)", removedContent, false, null));
 
 		editPanel = new JPanel();
 		editPanel.setLayout(new BoxLayout(editPanel, BoxLayout.Y_AXIS));
 		editPanel.setBorder(new EmptyBorder(10, 0, 0, 0));
 		JToggleButton[] editHeaderRef = new JToggleButton[1];
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Edit area", editPanel, false, editHeaderRef));
+		mainPanel.add(createCollapsibleSection("Edit area", editPanel, false, editHeaderRef));
 		editSectionHeader = editHeaderRef[0];
 
-		// Make hole section: stacked rows like Task system so nothing is clipped in narrow sidebar
-		makeHoleSectionPanel = new JPanel();
-		makeHoleSectionPanel.setLayout(new BoxLayout(makeHoleSectionPanel, BoxLayout.Y_AXIS));
-		makeHoleSectionPanel.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-		makeHoleOuterCombo = new JComboBox<>();
-		makeHoleInnerCombo = new JComboBox<>();
-		JPanel removeRow = new JPanel(new BorderLayout());
-		removeRow.add(new JLabel("Remove polygon"), BorderLayout.WEST);
-		removeRow.add(makeHoleInnerCombo, BorderLayout.EAST);
-		makeHoleSectionPanel.add(removeRow);
-		JPanel fromRow = new JPanel(new BorderLayout());
-		fromRow.add(new JLabel("from polygon"), BorderLayout.WEST);
-		fromRow.add(makeHoleOuterCombo, BorderLayout.EAST);
-		makeHoleSectionPanel.add(fromRow);
-		JButton makeHoleBtn = new JButton("Make hole");
-		makeHoleBtn.addActionListener(e -> applyMakeHole());
-		makeHoleBtn.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-		makeHoleSectionPanel.add(makeHoleBtn);
+		makeHoleSectionContent = new JPanel();
+		makeHoleSectionContent.setLayout(new BoxLayout(makeHoleSectionContent, BoxLayout.Y_AXIS));
+		// Reserve enough height so dropdowns and button aren't clipped when section is expanded
+		makeHoleSectionContent.setMinimumSize(new Dimension(0, 240));
 		JToggleButton[] makeHoleHeaderRef = new JToggleButton[1];
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Make hole", makeHoleSectionPanel, false, makeHoleHeaderRef));
+		mainPanel.add(createCollapsibleSection("Make hole", makeHoleSectionContent, false, makeHoleHeaderRef));
 		makeHoleSectionHeader = makeHoleHeaderRef[0];
 
 		mainPanel.add(new JLabel(" "));
-		// Task system: task mode and points per tier
+		// Task system: difficulty multiplier and points per tier
 		JPanel taskSystemPanel = new JPanel();
 		taskSystemPanel.setLayout(new BoxLayout(taskSystemPanel, BoxLayout.Y_AXIS));
-		JPanel taskModeRow = new JPanel(new BorderLayout());
-		taskModeRow.add(new JLabel("Task mode:"), BorderLayout.WEST);
-		JComboBox<LeagueScapeConfig.TaskMode> taskModeCombo = new JComboBox<>(LeagueScapeConfig.TaskMode.values());
-		taskModeCombo.setSelectedItem(config.taskMode());
-		taskModeCombo.addItemListener(e -> {
-			if (e.getStateChange() == java.awt.event.ItemEvent.SELECTED && e.getItem() instanceof LeagueScapeConfig.TaskMode)
-				configManager.setConfiguration(CONFIG_GROUP, "taskMode", ((LeagueScapeConfig.TaskMode) e.getItem()).name());
-		});
-		taskModeRow.add(taskModeCombo, BorderLayout.EAST);
-		taskSystemPanel.add(taskModeRow);
+		JPanel difficultyRow = new JPanel(new BorderLayout());
+		difficultyRow.add(new JLabel("Task difficulty (0.5=Easy, 1=Normal, 1.5=Hard):"), BorderLayout.WEST);
+		JSpinner difficultySpinner = new JSpinner(new SpinnerNumberModel(config.taskDifficultyMultiplier(), 0.5, 2.0, 0.5));
+		difficultySpinner.setMaximumSize(new Dimension(80, difficultySpinner.getPreferredSize().height));
+		difficultySpinner.addChangeListener(e -> configManager.setConfiguration(CONFIG_GROUP, "taskDifficultyMultiplier", ((Number) difficultySpinner.getValue()).doubleValue()));
+		difficultyRow.add(difficultySpinner, BorderLayout.EAST);
+		taskSystemPanel.add(difficultyRow);
 		for (int tier = 1; tier <= 5; tier++)
 		{
 			final int t = tier;
@@ -245,7 +225,7 @@ public class LeagueScapeConfigPanel extends PluginPanel
 			taskSystemPanel.add(tierRow);
 		}
 		taskSystemPanel.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Task system", taskSystemPanel, true, null));
+		mainPanel.add(createCollapsibleSection("Task system", taskSystemPanel, true, null));
 
 		mainPanel.add(new JLabel(" "));
 		JPanel tasksTop = new JPanel();
@@ -265,7 +245,7 @@ public class LeagueScapeConfigPanel extends PluginPanel
 			refreshTaskList();
 		});
 		tasksTop.add(clearTasksOverrideBtn);
-		taskListPanel = com.leaguescape.util.LeagueScapeSwingUtil.newScrollableTrackWidthPanel();
+		taskListPanel = newScrollableTrackWidthPanel();
 		taskListPanel.setLayout(new BoxLayout(taskListPanel, BoxLayout.Y_AXIS));
 		JScrollPane taskListScroll = new JScrollPane(taskListPanel);
 		taskListScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -284,16 +264,9 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		taskEditPanel.setLayout(new BoxLayout(taskEditPanel, BoxLayout.Y_AXIS));
 		taskEditPanel.setBorder(new EmptyBorder(10, 0, 0, 0));
 		JToggleButton[] taskEditHeaderRef = new JToggleButton[1];
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Tasks", tasksContent, true, null));
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Edit task", taskEditPanel, false, taskEditHeaderRef));
+		mainPanel.add(createCollapsibleSection("Tasks", tasksContent, true, null));
+		mainPanel.add(createCollapsibleSection("Edit task", taskEditPanel, false, taskEditHeaderRef));
 		taskEditSectionHeader = taskEditHeaderRef[0];
-
-		JPanel helperPanel = new JPanel(new BorderLayout());
-		JButton openHelperBtn = new JButton("Open Task Creator Helper");
-		openHelperBtn.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
-		openHelperBtn.addActionListener(e -> openTaskCreatorHelperDialog());
-		helperPanel.add(openHelperBtn, BorderLayout.NORTH);
-		mainPanel.add(com.leaguescape.util.LeagueScapeSwingUtil.createCollapsibleSection("Task Creator Helper", helperPanel, false, null));
 
 		JScrollPane scrollPane = new JScrollPane(mainPanel);
 		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -385,7 +358,6 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		String tempId = "new_area_" + System.currentTimeMillis();
 		plugin.startEditing(tempId, Collections.emptyList());
 		plugin.setCornerUpdateCallback(this::refreshCornersDisplay);
-		plugin.setNeighborUpdateCallback(this::refreshNeighborsFromPlugin);
 		showEditForm(tempId, "", "", null, Collections.emptyList(), Collections.emptyList(), 0, 10, Collections.emptyList());
 	}
 
@@ -401,7 +373,6 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		else
 			plugin.startEditing(areaId, firstPolygon);
 		plugin.setCornerUpdateCallback(this::refreshCornersDisplay);
-		plugin.setNeighborUpdateCallback(this::refreshNeighborsFromPlugin);
 		int ptsToComplete = a.getPointsToComplete() != null ? a.getPointsToComplete() : a.getUnlockCost();
 		String desc = a.getDescription() != null ? a.getDescription() : "";
 		List<List<int[]>> holes = new ArrayList<>();
@@ -417,11 +388,11 @@ public class LeagueScapeConfigPanel extends PluginPanel
 			editSectionHeader.setSelected(true);
 			editSectionHeader.setText("▼ Edit area");
 			editPanel.setVisible(true);
-			if (makeHoleSectionHeader != null && makeHoleSectionPanel != null)
+			if (makeHoleSectionHeader != null)
 			{
 				makeHoleSectionHeader.setSelected(true);
 				makeHoleSectionHeader.setText("▼ Make hole");
-				makeHoleSectionPanel.setVisible(true);
+				makeHoleSectionContent.setVisible(true);
 			}
 			for (Container p = editSectionHeader.getParent(); p != null; p = p.getParent())
 			{
@@ -475,13 +446,37 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		editPanel.add(holesScroll);
 		refreshHolesDisplay();
 
-		refreshMakeHoleCombos();
+		// Populate "Make hole" section (its own collapsible section so dropdowns aren't cut off)
+		if (makeHoleSectionContent != null)
+		{
+			makeHoleSectionContent.removeAll();
+			makeHolePanel = new JPanel(new BorderLayout(16,0));
+			makeHoleOuterCombo = new JComboBox<>();
+			makeHoleInnerCombo = new JComboBox<>();
+			refreshMakeHoleCombos();
+			JPanel makeHoleRow = new JPanel();
+			makeHoleRow.add(new JLabel("Remove polygon"));
+			makeHoleRow.add(makeHoleInnerCombo);
+			makeHoleRow.add(new JLabel("from polygon"));
+			makeHoleRow.add(makeHoleOuterCombo);
+			JButton makeHoleBtn = new JButton("Make hole");
+			makeHoleBtn.addActionListener(e -> applyMakeHole());
+			makeHoleRow.add(makeHoleBtn);
+			makeHolePanel.add(makeHoleRow, BorderLayout.CENTER);
+			makeHoleSectionContent.add(makeHolePanel);
+			makeHoleSectionContent.revalidate();
+			makeHoleSectionContent.repaint();
+			// Revalidate parents so the section wrapper gets correct height and doesn't clip content
+			for (Container p = makeHoleSectionContent.getParent(); p != null; p = p.getParent())
+			{
+				p.revalidate();
+			}
+		}
 
 		editPanel.add(new JLabel(" "));
 		editPanel.add(new JLabel("Neighbors:"));
 		neighborsPanel = new JPanel();
 		neighborsPanel.setLayout(new BoxLayout(neighborsPanel, BoxLayout.Y_AXIS));
-		List<String> neighborsToShow = (plugin.getEditingNeighbors() != null) ? plugin.getEditingNeighbors() : neighbors;
 		List<Area> others = new ArrayList<>(areaGraphService.getAreas());
 		others.removeIf(a -> a.getId().equals(areaId));
 		others.sort(AREA_DISPLAY_ORDER);
@@ -489,8 +484,7 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		{
 			JCheckBox cb = new JCheckBox(other.getDisplayName() != null ? other.getDisplayName() : other.getId());
 			cb.setName(other.getId()); // Store id for lookup
-			cb.setSelected(neighborsToShow.contains(other.getId()));
-			cb.addItemListener(e -> syncNeighborsToPlugin());
+			cb.setSelected(neighbors.contains(other.getId()));
 			neighborsPanel.add(cb);
 		}
 		JScrollPane neighborsScroll = new JScrollPane(neighborsPanel);
@@ -566,40 +560,11 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		if (removed != null)
 		{
 			editingHoles.add(removed);
-			plugin.setEditingHoles(editingHoles);
 			refreshMakeHoleCombos();
 			refreshCornersDisplay(plugin.getEditingCorners());
 			refreshHolesDisplay();
 			editPanel.revalidate();
 			editPanel.repaint();
-		}
-	}
-
-	private void syncNeighborsToPlugin()
-	{
-		if (neighborsPanel == null) return;
-		List<String> selected = new ArrayList<>();
-		for (int i = 0; i < neighborsPanel.getComponentCount(); i++)
-		{
-			if (neighborsPanel.getComponent(i) instanceof JCheckBox)
-			{
-				JCheckBox cb = (JCheckBox) neighborsPanel.getComponent(i);
-				if (cb.isSelected() && cb.getName() != null) selected.add(cb.getName());
-			}
-		}
-		plugin.setEditingNeighbors(selected);
-	}
-
-	private void refreshNeighborsFromPlugin(List<String> neighborIds)
-	{
-		if (neighborsPanel == null || neighborIds == null) return;
-		for (int i = 0; i < neighborsPanel.getComponentCount(); i++)
-		{
-			if (neighborsPanel.getComponent(i) instanceof JCheckBox)
-			{
-				JCheckBox cb = (JCheckBox) neighborsPanel.getComponent(i);
-				if (cb.getName() != null) cb.setSelected(neighborIds.contains(cb.getName()));
-			}
 		}
 	}
 
@@ -647,13 +612,6 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		cornersPanel.revalidate();
 		cornersPanel.repaint();
 		if (makeHoleOuterCombo != null) refreshMakeHoleCombos();
-		// Sync holes from plugin so "Fill using others' corners" updates the panel's holes list
-		if (plugin.getEditingHoles() != null)
-		{
-			editingHoles.clear();
-			for (List<int[]> h : plugin.getEditingHoles()) editingHoles.add(new ArrayList<>(h));
-			refreshHolesDisplay();
-		}
 	}
 
 	private void removeCorner(int index)
@@ -682,17 +640,15 @@ public class LeagueScapeConfigPanel extends PluginPanel
 			return;
 		}
 
-		List<String> neighborsToSave = new ArrayList<>();
-		if (plugin.getEditingNeighbors() != null)
-			neighborsToSave.addAll(plugin.getEditingNeighbors());
-		else if (neighborsPanel != null)
+		List<String> neighbors = new ArrayList<>();
+		for (int i = 0; i < neighborsPanel.getComponentCount(); i++)
 		{
-			for (int i = 0; i < neighborsPanel.getComponentCount(); i++)
+			if (neighborsPanel.getComponent(i) instanceof JCheckBox)
 			{
-				if (neighborsPanel.getComponent(i) instanceof JCheckBox)
+				JCheckBox cb = (JCheckBox) neighborsPanel.getComponent(i);
+				if (cb.isSelected() && cb.getName() != null)
 				{
-					JCheckBox cb = (JCheckBox) neighborsPanel.getComponent(i);
-					if (cb.isSelected() && cb.getName() != null) neighborsToSave.add(cb.getName());
+					neighbors.add(cb.getName());
 				}
 			}
 		}
@@ -700,10 +656,8 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		int cost = (Integer) unlockCostSpinner.getValue();
 		int ptsToComplete = (Integer) pointsToCompleteSpinner.getValue();
 
-		// Use plugin's holes so "Fill using others' corners" and Make hole are both persisted
 		List<List<int[]>> holesToSave = new ArrayList<>();
-		List<List<int[]>> sourceHoles = plugin.getEditingHoles() != null ? plugin.getEditingHoles() : editingHoles;
-		for (List<int[]> h : sourceHoles) holesToSave.add(new ArrayList<>(h));
+		for (List<int[]> h : editingHoles) holesToSave.add(new ArrayList<>(h));
 
 		Area area = Area.builder()
 			.id(id)
@@ -712,7 +666,7 @@ public class LeagueScapeConfigPanel extends PluginPanel
 			.polygons(allPolygons)
 			.holes(holesToSave)
 			.includes(Collections.emptyList()) // Computed by AreaGraphService
-			.neighbors(neighborsToSave)
+			.neighbors(neighbors)
 			.unlockCost(cost)
 			.pointsToComplete(ptsToComplete)
 			.build();
@@ -767,23 +721,34 @@ public class LeagueScapeConfigPanel extends PluginPanel
 
 	private void exportAreaJson()
 	{
-		File file = com.leaguescape.util.LeagueScapeSwingUtil.showJsonSaveDialog(this, com.leaguescape.util.ResourcePaths.DEFAULT_AREAS_FILENAME);
-		if (file == null) return;
-		try
+		JFileChooser chooser = new JFileChooser();
+		chooser.setDialogTitle("Export Area JSON");
+		chooser.setSelectedFile(new File("areas.json"));
+		chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("JSON files", "json"));
+
+		if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
 		{
-			String json = areaGraphService.exportAreasToJson();
-			Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
-			javax.swing.JOptionPane.showMessageDialog(this,
-				"Exported " + areaGraphService.getAreas().size() + " areas to " + file.getName(),
-				"Export Complete",
-				javax.swing.JOptionPane.INFORMATION_MESSAGE);
-		}
-		catch (Exception ex)
-		{
-			javax.swing.JOptionPane.showMessageDialog(this,
-				"Export failed: " + ex.getMessage(),
-				"Export Error",
-				javax.swing.JOptionPane.ERROR_MESSAGE);
+			File file = chooser.getSelectedFile();
+			if (!file.getName().toLowerCase().endsWith(".json"))
+			{
+				file = new File(file.getParent(), file.getName() + ".json");
+			}
+			try
+			{
+				String json = areaGraphService.exportAreasToJson();
+				Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
+				javax.swing.JOptionPane.showMessageDialog(this,
+					"Exported " + areaGraphService.getAreas().size() + " areas to " + file.getName(),
+					"Export Complete",
+					javax.swing.JOptionPane.INFORMATION_MESSAGE);
+			}
+			catch (Exception ex)
+			{
+				javax.swing.JOptionPane.showMessageDialog(this,
+					"Export failed: " + ex.getMessage(),
+					"Export Error",
+					javax.swing.JOptionPane.ERROR_MESSAGE);
+			}
 		}
 	}
 
@@ -799,7 +764,7 @@ public class LeagueScapeConfigPanel extends PluginPanel
 			final int index = i;
 			TaskDefinition t = custom.get(i);
 			String name = t.getDisplayName() != null ? t.getDisplayName() : "(no name)";
-			String type = normalizeAchievementDiaryTaskType(t.getTaskType() != null ? t.getTaskType() : "");
+			String type = t.getTaskType() != null ? t.getTaskType() : "";
 			int diff = t.getDifficulty();
 			List<String> areaIds = t.getRequiredAreaIds();
 			String areaSummary = areaIds.isEmpty() ? "any" : String.join(", ", areaIds);
@@ -855,8 +820,14 @@ public class LeagueScapeConfigPanel extends PluginPanel
 
 	private void exportTaskJson()
 	{
-		File file = com.leaguescape.util.LeagueScapeSwingUtil.showJsonSaveDialog(this, com.leaguescape.util.ResourcePaths.DEFAULT_TASKS_FILENAME);
-		if (file == null) return;
+		JFileChooser chooser = new JFileChooser();
+		chooser.setDialogTitle("Export Task JSON");
+		chooser.setSelectedFile(new File("tasks.json"));
+		chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("JSON files", "json"));
+		if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+		File file = chooser.getSelectedFile();
+		if (!file.getName().toLowerCase().endsWith(".json"))
+			file = new File(file.getParent(), file.getName() + ".json");
 		try
 		{
 			String json = taskGridService.exportTasksToJson();
@@ -906,15 +877,13 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		taskDisplayNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, taskDisplayNameField.getPreferredSize().height));
 		taskEditPanel.add(taskDisplayNameField);
 		taskEditPanel.add(new JLabel("Task type (e.g. Combat, Mining):"));
-		taskTypeField = new JTextField(normalizeAchievementDiaryTaskType(t.getTaskType() != null ? t.getTaskType() : ""), 20);
+		taskTypeField = new JTextField(t.getTaskType() != null ? t.getTaskType() : "", 20);
 		taskTypeField.setMaximumSize(new Dimension(Integer.MAX_VALUE, taskTypeField.getPreferredSize().height));
 		taskEditPanel.add(taskTypeField);
 		taskEditPanel.add(new JLabel("Difficulty (1–5):"));
 		taskDifficultySpinner = new JSpinner(new SpinnerNumberModel(
 			Math.max(1, Math.min(5, t.getDifficulty())), 1, 5, 1));
 		taskEditPanel.add(taskDifficultySpinner);
-		taskF2pCheckBox = new JCheckBox("Free to Play (available in F2P worlds)", Boolean.TRUE.equals(t.getF2p()));
-		taskEditPanel.add(taskF2pCheckBox);
 		taskEditPanel.add(new JLabel("Area(s) – leave all unchecked for any area; or select areas this task appears in:"));
 		taskAreasPanel = new JPanel();
 		taskAreasPanel.setLayout(new BoxLayout(taskAreasPanel, BoxLayout.Y_AXIS));
@@ -931,16 +900,6 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		JScrollPane taskAreasScroll = new JScrollPane(taskAreasPanel);
 		taskAreasScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		taskEditPanel.add(taskAreasScroll);
-		taskEditPanel.add(new JLabel("Area requirement (when multiple areas):"));
-		taskAreaRequirementCombo = new JComboBox<>(new String[] { "all", "any" });
-		taskAreaRequirementCombo.setSelectedItem((t.getAreaRequirement() != null && "any".equalsIgnoreCase(t.getAreaRequirement())) ? "any" : "all");
-		taskEditPanel.add(taskAreaRequirementCombo);
-		taskOnceOnlyCheckBox = new JCheckBox("Appear only once (in one area, one slot)", Boolean.TRUE.equals(t.getOnceOnly()));
-		taskEditPanel.add(taskOnceOnlyCheckBox);
-		taskEditPanel.add(new JLabel("Requirements (optional):"));
-		taskRequirementsField = new JTextField(t.getRequirements() != null ? t.getRequirements() : "", 20);
-		taskRequirementsField.setMaximumSize(new Dimension(Integer.MAX_VALUE, taskRequirementsField.getPreferredSize().height));
-		taskEditPanel.add(taskRequirementsField);
 		taskEditPanel.add(new JLabel(" "));
 		JPanel taskSaveCancel = new JPanel();
 		JButton taskSaveBtn = new JButton("Save");
@@ -972,12 +931,8 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		}
 		TaskDefinition def = new TaskDefinition();
 		def.setDisplayName(displayName);
-		def.setTaskType(taskType.isEmpty() ? null : normalizeAchievementDiaryTaskType(taskType));
+		def.setTaskType(taskType.isEmpty() ? null : taskType);
 		def.setDifficulty(difficulty);
-		def.setF2p(taskF2pCheckBox.isSelected());
-		def.setAreaRequirement(taskAreaRequirementCombo != null && "any".equals(taskAreaRequirementCombo.getSelectedItem()) ? "any" : "all");
-		def.setOnceOnly(taskOnceOnlyCheckBox != null && taskOnceOnlyCheckBox.isSelected());
-		def.setRequirements(taskRequirementsField != null && taskRequirementsField.getText() != null && !taskRequirementsField.getText().trim().isEmpty() ? taskRequirementsField.getText().trim() : null);
 		if (areaIds.isEmpty())
 		{
 			def.setArea(null);
@@ -1038,273 +993,6 @@ public class LeagueScapeConfigPanel extends PluginPanel
 		editPanel.removeAll();
 		editPanel.revalidate();
 		editPanel.repaint();
-	}
-
-	private void openTaskCreatorHelperDialog()
-	{
-		if (wikiApi == null || wikiTaskGenerator == null) return;
-		Frame owner = null;
-		java.awt.Window w = SwingUtilities.windowForComponent(this);
-		if (w instanceof Frame) owner = (Frame) w;
-		JDialog dialog = new JDialog(owner, "Task Creator Helper", true);
-		dialog.setLayout(new BorderLayout(8, 8));
-
-		JTabbedPane tabs = new JTabbedPane();
-		// Manual tab
-		JPanel manualPanel = new JPanel(new BorderLayout(6, 6));
-		JPanel manualTop = new JPanel(new BorderLayout(4, 4));
-		JPanel sourceRow = new JPanel(new BorderLayout(4, 0));
-		sourceRow.add(new JLabel("Source:"), BorderLayout.WEST);
-		JComboBox<WikiTaskSource> sourceCombo = new JComboBox<>(WikiTaskSource.values());
-		sourceRow.add(sourceCombo, BorderLayout.CENTER);
-		JButton fetchBtn = new JButton("Fetch from Wiki");
-		sourceRow.add(fetchBtn, BorderLayout.EAST);
-		manualTop.add(sourceRow, BorderLayout.NORTH);
-		DefaultListModel<String> candidateModel = new DefaultListModel<>();
-		JList<String> candidateList = new JList<>(candidateModel);
-		candidateList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-		manualTop.add(new JScrollPane(candidateList), BorderLayout.CENTER);
-		manualPanel.add(manualTop, BorderLayout.NORTH);
-
-		JPanel formPanel = new JPanel();
-		formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
-		formPanel.add(new JLabel("Display name:"));
-		JTextField helperDisplayName = new JTextField(30);
-		formPanel.add(helperDisplayName);
-		formPanel.add(new JLabel("Task type:"));
-		JComboBox<String> helperTaskType = new JComboBox<>(TASK_TYPE_PRESETS);
-		formPanel.add(helperTaskType);
-		formPanel.add(new JLabel("Difficulty (1-5):"));
-		JSpinner helperDifficulty = new JSpinner(new SpinnerNumberModel(3, 1, 5, 1));
-		formPanel.add(helperDifficulty);
-		JCheckBox helperF2p = new JCheckBox("F2P", true);
-		formPanel.add(helperF2p);
-		formPanel.add(new JLabel("Area (optional):"));
-		JPanel helperAreasPanel = new JPanel();
-		helperAreasPanel.setLayout(new BoxLayout(helperAreasPanel, BoxLayout.Y_AXIS));
-		List<Area> areasForHelper = new ArrayList<>(areaGraphService.getAreas());
-		areasForHelper.sort(AREA_DISPLAY_ORDER);
-		for (Area a : areasForHelper)
-		{
-			JCheckBox cb = new JCheckBox(a.getDisplayName() != null ? a.getDisplayName() : a.getId());
-			cb.setName(a.getId());
-			helperAreasPanel.add(cb);
-		}
-		formPanel.add(new JScrollPane(helperAreasPanel));
-		formPanel.add(new JLabel("Area requirement (when multiple areas):"));
-		JComboBox<String> helperAreaRequirement = new JComboBox<>(new String[] { "all", "any" });
-		formPanel.add(helperAreaRequirement);
-		JCheckBox helperOnceOnly = new JCheckBox("Appear only once", false);
-		formPanel.add(helperOnceOnly);
-		formPanel.add(new JLabel("Requirements (optional):"));
-		JTextField helperRequirements = new JTextField(30);
-		formPanel.add(helperRequirements);
-		JPanel manualButtons = new JPanel();
-		JButton addOneBtn = new JButton("Add to task list");
-		JButton copyJsonBtn = new JButton("Copy JSON");
-		JButton clearBtn = new JButton("Clear");
-		manualButtons.add(addOneBtn);
-		manualButtons.add(copyJsonBtn);
-		manualButtons.add(clearBtn);
-		formPanel.add(manualButtons);
-		manualPanel.add(new JScrollPane(formPanel), BorderLayout.CENTER);
-
-		candidateList.addListSelectionListener(e -> {
-			if (e.getValueIsAdjusting()) return;
-			int i = candidateList.getSelectedIndex();
-			if (i >= 0 && i < candidateModel.getSize())
-			{
-				WikiTaskSource src = (WikiTaskSource) sourceCombo.getSelectedItem();
-				String title = candidateModel.get(i);
-				String prefix = src != null && src.getDisplayNamePrefix() != null ? src.getDisplayNamePrefix() : "";
-				helperDisplayName.setText(prefix + title);
-				if (src != null) helperTaskType.setSelectedItem(src.getDefaultTaskType());
-			}
-		});
-		fetchBtn.addActionListener(e -> {
-			fetchBtn.setEnabled(false);
-			WikiTaskSource src = (WikiTaskSource) sourceCombo.getSelectedItem();
-			if (src == null) { fetchBtn.setEnabled(true); return; }
-			helperExecutor.execute(() -> {
-				List<String> all = new ArrayList<>();
-				String ct = null;
-				do
-				{
-					OsrsWikiApiService.CategoryMembersResult res = wikiApi.listCategoryMembers(src.getCategoryName(), 500, ct);
-					all.addAll(res.getTitles());
-					ct = res.getNextContinue();
-				}
-				while (ct != null && !ct.isEmpty());
-				SwingUtilities.invokeLater(() -> {
-					candidateModel.clear();
-					for (String t : all) candidateModel.addElement(t);
-					fetchBtn.setEnabled(true);
-				});
-			});
-		});
-		addOneBtn.addActionListener(e -> {
-			TaskDefinition def = buildTaskFromHelperForm(helperDisplayName, helperTaskType, helperDifficulty, helperF2p, helperAreasPanel, helperAreaRequirement, helperOnceOnly, helperRequirements);
-			if (def != null) { taskGridService.addCustomTask(def); refreshTaskList(); JOptionPane.showMessageDialog(dialog, "Task added."); }
-		});
-		copyJsonBtn.addActionListener(e -> {
-			TaskDefinition def = buildTaskFromHelperForm(helperDisplayName, helperTaskType, helperDifficulty, helperF2p, helperAreasPanel, helperAreaRequirement, helperOnceOnly, helperRequirements);
-			if (def != null)
-			{
-				String json = taskGridService.exportTaskListAsJson(Collections.singletonList(def));
-				Clipboard cl = dialog.getToolkit().getSystemClipboard();
-				if (cl != null) cl.setContents(new StringSelection(json), null);
-				JOptionPane.showMessageDialog(dialog, "JSON copied to clipboard.");
-			}
-		});
-		clearBtn.addActionListener(e -> {
-			helperDisplayName.setText("");
-			helperTaskType.setSelectedIndex(0);
-			helperDifficulty.setValue(3);
-			helperF2p.setSelected(true);
-			helperAreaRequirement.setSelectedItem("all");
-			helperOnceOnly.setSelected(false);
-			helperRequirements.setText("");
-			for (int i = 0; i < helperAreasPanel.getComponentCount(); i++)
-				if (helperAreasPanel.getComponent(i) instanceof JCheckBox)
-					((JCheckBox) helperAreasPanel.getComponent(i)).setSelected(false);
-		});
-
-		tabs.addTab("Manual", manualPanel);
-
-		// Generate tab
-		JPanel genPanel = new JPanel(new BorderLayout(6, 6));
-		JPanel genOptions = new JPanel();
-		genOptions.setLayout(new BoxLayout(genOptions, BoxLayout.Y_AXIS));
-		genOptions.add(new JLabel("Source types to include:"));
-		JPanel sourceCheckboxes = new JPanel();
-		sourceCheckboxes.setLayout(new BoxLayout(sourceCheckboxes, BoxLayout.Y_AXIS));
-		for (WikiTaskSource src : WikiTaskSource.values())
-		{
-			JCheckBox cb = new JCheckBox(src.getDisplayName());
-			cb.setName(src.name());
-			sourceCheckboxes.add(cb);
-		}
-		genOptions.add(new JScrollPane(sourceCheckboxes));
-		genOptions.add(new JLabel("Default difficulty:"));
-		JSpinner genDefDiff = new JSpinner(new SpinnerNumberModel(3, 1, 5, 1));
-		genOptions.add(genDefDiff);
-		genOptions.add(new JLabel("Difficulty range (min-max):"));
-		JPanel rangeRow = new JPanel();
-		JSpinner genRangeMin = new JSpinner(new SpinnerNumberModel(1, 1, 5, 1));
-		JSpinner genRangeMax = new JSpinner(new SpinnerNumberModel(5, 1, 5, 1));
-		rangeRow.add(genRangeMin);
-		rangeRow.add(new JLabel(" to "));
-		rangeRow.add(genRangeMax);
-		genOptions.add(rangeRow);
-		JCheckBox genF2p = new JCheckBox("F2P by default", true);
-		genOptions.add(genF2p);
-		JButton generateBtn = new JButton("Generate");
-		genOptions.add(generateBtn);
-		JLabel progressLabel = new JLabel(" ");
-		genOptions.add(progressLabel);
-		genPanel.add(genOptions, BorderLayout.NORTH);
-		DefaultTableModel previewModel = new DefaultTableModel(new String[] { "Display name", "Type", "Difficulty" }, 0);
-		JTable previewTable = new JTable(previewModel);
-		genPanel.add(new JScrollPane(previewTable), BorderLayout.CENTER);
-		JPanel genActions = new JPanel();
-		JButton addAllBtn = new JButton("Add all to task list");
-		JButton exportJsonBtn = new JButton("Export as JSON");
-		genActions.add(addAllBtn);
-		genActions.add(exportJsonBtn);
-		genPanel.add(genActions, BorderLayout.SOUTH);
-
-		List<TaskDefinition>[] generatedHolder = new List[] { new ArrayList<>() };
-		generateBtn.addActionListener(e -> {
-			Set<WikiTaskSource> selected = new HashSet<>();
-			for (int i = 0; i < sourceCheckboxes.getComponentCount(); i++)
-				if (sourceCheckboxes.getComponent(i) instanceof JCheckBox)
-				{
-					JCheckBox cb = (JCheckBox) sourceCheckboxes.getComponent(i);
-					if (cb.isSelected() && cb.getName() != null)
-					{
-						try { selected.add(WikiTaskSource.valueOf(cb.getName())); } catch (Exception ignored) { }
-					}
-				}
-			if (selected.isEmpty()) { JOptionPane.showMessageDialog(dialog, "Select at least one source."); return; }
-			generateBtn.setEnabled(false);
-			WikiTaskGenerator.GeneratorDefaults defaults = new WikiTaskGenerator.GeneratorDefaults();
-			defaults.setDefaultDifficulty((Integer) genDefDiff.getValue());
-			defaults.setDefaultF2p(genF2p.isSelected());
-			defaults.setDifficultyRangeMin((Integer) genRangeMin.getValue());
-			defaults.setDifficultyRangeMax((Integer) genRangeMax.getValue());
-			helperExecutor.execute(() -> {
-				List<TaskDefinition> result = wikiTaskGenerator.generate(selected, defaults, msg ->
-					SwingUtilities.invokeLater(() -> progressLabel.setText(msg)));
-				generatedHolder[0] = result != null ? result : new ArrayList<>();
-				SwingUtilities.invokeLater(() -> {
-					previewModel.setRowCount(0);
-					for (int i = 0; i < Math.min(50, generatedHolder[0].size()); i++)
-					{
-						TaskDefinition t = generatedHolder[0].get(i);
-						previewModel.addRow(new Object[] {
-							t.getDisplayName() != null ? t.getDisplayName() : "",
-							normalizeAchievementDiaryTaskType(t.getTaskType() != null ? t.getTaskType() : ""),
-							t.getDifficulty()
-						});
-					}
-					progressLabel.setText("Generated " + generatedHolder[0].size() + " tasks.");
-					generateBtn.setEnabled(true);
-				});
-			});
-		});
-		addAllBtn.addActionListener(e -> {
-			if (generatedHolder[0].isEmpty()) { JOptionPane.showMessageDialog(dialog, "Generate first."); return; }
-			taskGridService.addCustomTasks(generatedHolder[0]);
-			refreshTaskList();
-			JOptionPane.showMessageDialog(dialog, "Added " + generatedHolder[0].size() + " tasks.");
-		});
-		exportJsonBtn.addActionListener(e -> {
-			if (generatedHolder[0].isEmpty()) { JOptionPane.showMessageDialog(dialog, "Generate first."); return; }
-			String json = taskGridService.exportTaskListAsJson(generatedHolder[0]);
-			Clipboard cl = dialog.getToolkit().getSystemClipboard();
-			if (cl != null) cl.setContents(new StringSelection(json), null);
-			JOptionPane.showMessageDialog(dialog, "JSON copied to clipboard (" + generatedHolder[0].size() + " tasks).");
-		});
-
-		tabs.addTab("Generate", genPanel);
-
-		dialog.add(tabs, BorderLayout.CENTER);
-		JButton closeBtn = new JButton("Close");
-		closeBtn.addActionListener(ev -> dialog.dispose());
-		JPanel closeRow = new JPanel();
-		closeRow.add(closeBtn);
-		dialog.add(closeRow, BorderLayout.SOUTH);
-		dialog.pack();
-		dialog.setSize(Math.min(600, dialog.getWidth()), Math.min(500, dialog.getHeight()));
-		dialog.setLocationRelativeTo(this);
-		LeagueScapePlugin.registerEscapeToClose(dialog);
-		dialog.setVisible(true);
-	}
-
-	private TaskDefinition buildTaskFromHelperForm(JTextField displayName, JComboBox<String> taskType, JSpinner difficulty,
-		JCheckBox f2p, JPanel areasPanel, JComboBox<String> areaRequirement, JCheckBox onceOnly, JTextField requirements)
-	{
-		String name = displayName.getText() != null ? displayName.getText().trim() : "";
-		if (name.isEmpty()) return null;
-		TaskDefinition def = new TaskDefinition();
-		def.setDisplayName(name);
-		def.setTaskType(taskType.getSelectedItem() != null ? taskType.getSelectedItem().toString() : null);
-		def.setDifficulty((Integer) difficulty.getValue());
-		def.setF2p(f2p.isSelected());
-		def.setAreaRequirement(areaRequirement != null && "any".equals(areaRequirement.getSelectedItem()) ? "any" : "all");
-		def.setOnceOnly(onceOnly != null && onceOnly.isSelected());
-		def.setRequirements(requirements.getText() != null && !requirements.getText().trim().isEmpty() ? requirements.getText().trim() : null);
-		List<String> areaIds = new ArrayList<>();
-		for (int i = 0; i < areasPanel.getComponentCount(); i++)
-			if (areasPanel.getComponent(i) instanceof JCheckBox)
-			{
-				JCheckBox cb = (JCheckBox) areasPanel.getComponent(i);
-				if (cb.isSelected() && cb.getName() != null) areaIds.add(cb.getName());
-			}
-		if (areaIds.isEmpty()) { def.setArea(null); def.setAreas(null); }
-		else if (areaIds.size() == 1) { def.setArea(areaIds.get(0)); def.setAreas(null); }
-		else { def.setArea(null); def.setAreas(areaIds); }
-		return def;
 	}
 
 	public BufferedImage getIcon()
