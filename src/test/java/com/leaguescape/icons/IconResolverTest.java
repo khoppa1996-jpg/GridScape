@@ -22,4 +22,22 @@ public class IconResolverTest
 		Assert.assertTrue(path.contains("bossicons"));
 		Assert.assertTrue(path.contains("zulrah"));
 	}
+
+	@Test
+	public void combatWithBossIdUsesBossIconNotCombatIcon()
+	{
+		String path = IconResolver.resolveTaskTileLocalIconPath(TaskTypes.COMBAT, "Defeat Zulrah", "zulrah");
+		Assert.assertNotNull(path);
+		Assert.assertTrue(path.contains("bossicons"));
+		Assert.assertFalse(path.contains("Combat_icon"));
+	}
+
+	@Test
+	public void collectionLogWithBossIdUsesCollectionLogIconNotBossIcon()
+	{
+		String path = IconResolver.resolveTaskTileLocalIconPath(TaskTypes.COLLECTION_LOG, "Zulrah (Collection Log)", "zulrah");
+		Assert.assertNotNull(path);
+		Assert.assertTrue(path.contains("Collection_log_detail"));
+		Assert.assertFalse(path.contains("bossicons"));
+	}
 }

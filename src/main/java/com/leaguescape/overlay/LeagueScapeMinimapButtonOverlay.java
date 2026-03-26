@@ -38,6 +38,8 @@ public class LeagueScapeMinimapButtonOverlay extends Overlay implements MouseLis
 
 	private volatile Rectangle buttonBounds = null;
 	private BufferedImage buttonImage;
+	private BufferedImage buttonImageHovered;
+	private volatile boolean taskIconHovered;
 
 	@Inject
 	public LeagueScapeMinimapButtonOverlay(Client client, LeagueScapeConfig config, LeagueScapePlugin plugin)
@@ -56,6 +58,7 @@ public class LeagueScapeMinimapButtonOverlay extends Overlay implements MouseLis
 		if (orb == null || orb.isHidden())
 		{
 			buttonBounds = null;
+			taskIconHovered = false;
 			return null;
 		}
 		Rectangle orbBounds = orb.getBounds();
@@ -68,9 +71,12 @@ public class LeagueScapeMinimapButtonOverlay extends Overlay implements MouseLis
 
 		if (buttonImage == null)
 			buttonImage = ImageUtil.loadImageResource(LeagueScapePlugin.class, "task_icon.png");
-		if (buttonImage != null)
+		if (buttonImageHovered == null)
+			buttonImageHovered = ImageUtil.loadImageResource(LeagueScapePlugin.class, "task_icon_hovered.png");
+		BufferedImage source = taskIconHovered && buttonImageHovered != null ? buttonImageHovered : buttonImage;
+		if (source != null)
 		{
-			Image scaled = buttonImage.getScaledInstance(BUTTON_SIZE, BUTTON_SIZE, Image.SCALE_SMOOTH);
+			Image scaled = source.getScaledInstance(BUTTON_SIZE, BUTTON_SIZE, Image.SCALE_SMOOTH);
 			graphics.drawImage(scaled, x, y, null);
 		}
 		else
@@ -121,19 +127,36 @@ public class LeagueScapeMinimapButtonOverlay extends Overlay implements MouseLis
 	@Override
 	public java.awt.event.MouseEvent mouseExited(java.awt.event.MouseEvent event)
 	{
+		setHoveredAndMaybeRepaint(false);
 		return event;
 	}
 
 	@Override
 	public java.awt.event.MouseEvent mouseDragged(java.awt.event.MouseEvent event)
 	{
+		Rectangle bounds = buttonBounds;
+		boolean over = bounds != null && bounds.contains(event.getX(), event.getY());
+		setHoveredAndMaybeRepaint(over);
 		return event;
 	}
 
 	@Override
 	public java.awt.event.MouseEvent mouseMoved(java.awt.event.MouseEvent event)
 	{
+		Rectangle bounds = buttonBounds;
+		boolean over = bounds != null && bounds.contains(event.getX(), event.getY());
+		setHoveredAndMaybeRepaint(over);
 		return event;
+	}
+
+	private void setHoveredAndMaybeRepaint(boolean over)
+	{
+		if (over == taskIconHovered)
+			return;
+		taskIconHovered = over;
+		java.awt.Component canvas = client.getCanvas();
+		if (canvas != null)
+			canvas.repaint();
 	}
 
 	private void openTasksPanel()

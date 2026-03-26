@@ -284,8 +284,9 @@ public class GlobalTaskListPanel extends JPanel
 			if (!isCenter)
 			{
 				String cacheKey = tile.getTaskType() != null ? ("type:" + tile.getTaskType()) : tile.getDisplayName();
-				if (com.leaguescape.constants.TaskTypes.KILL_COUNT.equalsIgnoreCase(tile.getTaskType()) && tile.getBossId() != null && !tile.getBossId().isEmpty())
-					cacheKey = "killCount:" + tile.getBossId();
+				if (tile.getBossId() != null && !tile.getBossId().isEmpty()
+					&& !com.leaguescape.constants.TaskTypes.isCollectionLogType(tile.getTaskType()))
+					cacheKey = "boss:" + tile.getBossId();
 				BufferedImage raw = rawTaskIconCache.get(cacheKey);
 				if (raw == null)
 				{

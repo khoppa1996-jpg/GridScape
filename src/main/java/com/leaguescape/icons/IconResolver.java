@@ -60,21 +60,23 @@ public final class IconResolver
 	}
 
 	/**
-	 * Full path for a task tile: boss kill, task-type map, {@code killCount} without boss (combat icon),
-	 * then collection log / clue heuristics from type or display name.
+	 * Full path for a task tile: if {@code bossId} is set (and type is not Collection Log), boss icon; else task-type map;
+	 * {@code killCount} without boss uses combat icon; then collection log / clue heuristics from type or display name.
+	 * Collection Log tasks keep the collection log tile icon even when {@code bossId} identifies the entry's boss.
 	 */
 	public static String resolveTaskTileLocalIconPath(String taskType, String displayName, String bossId)
 	{
+		if (bossId != null && !bossId.trim().isEmpty() && !TaskTypes.isCollectionLogType(taskType))
+		{
+			String bossPath = resolveBossIconPath(bossId.trim());
+			if (bossPath != null) return bossPath;
+		}
+
 		if (taskType != null)
 		{
 			String tt = taskType.trim();
 			if (TaskTypes.KILL_COUNT.equalsIgnoreCase(tt))
 			{
-				if (bossId != null && !bossId.trim().isEmpty())
-				{
-					String bossPath = resolveBossIconPath(bossId.trim());
-					if (bossPath != null) return bossPath;
-				}
 				String combat = resolveTaskTypeLocalIconPath(TaskTypes.COMBAT);
 				if (combat != null) return combat;
 			}

@@ -1659,8 +1659,9 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 					else
 					{
 						String cacheKey = tile.getTaskType() != null ? ("type:" + tile.getTaskType()) : tile.getDisplayName();
-						if (TaskTypes.KILL_COUNT.equalsIgnoreCase(tile.getTaskType()) && tile.getBossId() != null && !tile.getBossId().isEmpty())
-							cacheKey = "killCount:" + tile.getBossId();
+						if (tile.getBossId() != null && !tile.getBossId().isEmpty()
+							&& !TaskTypes.isCollectionLogType(tile.getTaskType()))
+							cacheKey = "boss:" + tile.getBossId();
 						BufferedImage raw = taskIconCache.get(cacheKey);
 						if (raw == null)
 						{
