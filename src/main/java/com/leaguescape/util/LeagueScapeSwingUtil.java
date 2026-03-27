@@ -3,6 +3,7 @@ package com.leaguescape.util;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Window;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Image;
@@ -19,6 +20,8 @@ import javax.swing.SwingConstants;
 import net.runelite.client.util.ImageUtil;
 
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import javax.swing.JComponent;
 import javax.swing.JRootPane;
@@ -171,6 +174,35 @@ public final class LeagueScapeSwingUtil
 			b.setForeground(fallbackTextColor != null ? fallbackTextColor : LeagueScapeColors.POPUP_TEXT);
 		}
 		return b;
+	}
+
+	/**
+	 * Makes an undecorated window draggable from {@code dragRegion} (e.g. title row), matching
+	 * {@link com.leaguescape.config.LeagueScapeSetupFrame} title-bar behaviour.
+	 */
+	public static void installUndecoratedWindowDrag(Window window, Component dragRegion)
+	{
+		if (window == null || dragRegion == null)
+			return;
+		final int[] dragOffset = new int[2];
+		dragRegion.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				java.awt.Point loc = window.getLocationOnScreen();
+				dragOffset[0] = e.getXOnScreen() - loc.x;
+				dragOffset[1] = e.getYOnScreen() - loc.y;
+			}
+		});
+		dragRegion.addMouseMotionListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseDragged(MouseEvent e)
+			{
+				window.setLocation(e.getXOnScreen() - dragOffset[0], e.getYOnScreen() - dragOffset[1]);
+			}
+		});
 	}
 
 	/** Registers Escape key to close the given window (dispose). Call after creating a JDialog/JFrame. */

@@ -50,6 +50,7 @@ import net.runelite.api.Client;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.util.ImageUtil;
+import com.leaguescape.util.LeagueScapeSwingUtil;
 
 /**
  * World Unlock grid panel. Displays unlock tiles as square icon-only tiles in a spiral grid
@@ -142,6 +143,7 @@ public class WorldUnlockGridPanel extends JPanel
 		});
 		titleRow.add(closeBtn, BorderLayout.EAST);
 		header.add(titleRow, BorderLayout.NORTH);
+		LeagueScapeSwingUtil.installUndecoratedWindowDrag(parentDialog, titleRow);
 		add(header, BorderLayout.NORTH);
 
 		gridPanel = new JPanel();

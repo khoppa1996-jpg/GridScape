@@ -49,6 +49,7 @@ import net.runelite.api.Client;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.util.ImageUtil;
+import com.leaguescape.util.LeagueScapeSwingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -146,6 +147,7 @@ public class GlobalTaskListPanel extends JPanel
 		});
 		titleRow.add(closeBtn, BorderLayout.EAST);
 		header.add(titleRow, BorderLayout.NORTH);
+		LeagueScapeSwingUtil.installUndecoratedWindowDrag(parentDialog, titleRow);
 		add(header, BorderLayout.NORTH);
 
 		gridPanel = new JPanel();

@@ -10,6 +10,7 @@ import com.leaguescape.area.AreaGraphService;
 import com.leaguescape.grid.GridPos;
 import com.leaguescape.data.Area;
 import com.leaguescape.util.RingBonusPopup;
+import com.leaguescape.util.LeagueScapeSwingUtil;
 import com.leaguescape.data.AreaStatus;
 import com.leaguescape.points.AreaCompletionService;
 import com.leaguescape.points.PointsService;
@@ -1615,6 +1616,7 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 			pointsLabelHolder[0] = new JLabel(getPointsDisplayText(area));
 			pointsLabelHolder[0].setForeground(POPUP_TEXT);
 			header.add(pointsLabelHolder[0], java.awt.BorderLayout.SOUTH);
+			LeagueScapeSwingUtil.installUndecoratedWindowDrag(dialog, header);
 			content.add(header, java.awt.BorderLayout.NORTH);
 
 			// Grid panel: only non-locked tiles, inside scroll pane with vertical + horizontal scroll bars

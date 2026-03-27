@@ -12,6 +12,7 @@ import com.leaguescape.task.TaskGridService;
 import com.leaguescape.task.TaskState;
 import com.leaguescape.task.TaskTile;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +53,8 @@ public class GlobalTaskListService
 	private static final String KEY_GLOBAL_RING_BONUS = "globalTaskProgress_ringBonus";
 	/** Persisted seed so {@link #buildGlobalGrid(int)} matches the Global Task panel layout. */
 	private static final String KEY_GLOBAL_LAYOUT_SEED = "globalTaskProgress_layoutSeed";
+	/** Task keys that were eligible for the global pool on the last {@link #buildGlobalGrid(int)} (comma-separated). */
+	private static final String KEY_GLOBAL_ELIGIBLE_SNAPSHOT = "globalTaskProgress_eligibleSnapshot";
 	/** Max bonus points for completing one full ring on the global task grid. */
 	private static final int RING_BONUS_CAP = 250;
 	private static final String ID_SEP = ",";
@@ -730,6 +733,62 @@ public class GlobalTaskListService
 	}
 
 	/**
+	 * Skill / area / collection-log / tier prioritization, then shuffle within equal buckets (same as before lazy-assignment changes).
+	 */
+	private void applyPrioritySortAndBucketShuffle(List<TaskDefinition> availableForNew, Set<String> unlockedAreaIds, Random rnd)
+	{
+		availableForNew.sort((a, b) -> {
+			boolean aSkill = isUnlockedSkillBracketTask(a);
+			boolean bSkill = isUnlockedSkillBracketTask(b);
+			if (aSkill != bSkill) return aSkill ? -1 : 1;
+			boolean aUnlockedArea = isUnlockedAreaTask(a, unlockedAreaIds);
+			boolean bUnlockedArea = isUnlockedAreaTask(b, unlockedAreaIds);
+			if (aUnlockedArea != bUnlockedArea) return aUnlockedArea ? -1 : 1;
+			boolean aArea = isAreaTask(a);
+			boolean bArea = isAreaTask(b);
+			if (aArea != bArea) return aArea ? -1 : 1;
+			boolean aCl = TaskTypes.isCollectionLogType(a.getTaskType());
+			boolean bCl = TaskTypes.isCollectionLogType(b.getTaskType());
+			if (aCl && bCl)
+			{
+				int ra = collectionLogGridRank(a);
+				int rb = collectionLogGridRank(b);
+				if (ra != rb) return Integer.compare(rb, ra);
+			}
+			int da = Math.max(1, Math.min(MAX_TIER, a.getDifficulty()));
+			int db = Math.max(1, Math.min(MAX_TIER, b.getDifficulty()));
+			if (da != db) return Integer.compare(da, db);
+			boolean aNa = isCollectionLogWithoutBossOrArea(a);
+			boolean bNa = isCollectionLogWithoutBossOrArea(b);
+			if (aNa != bNa) return aNa ? 1 : -1;
+			return taskKey(a).compareTo(taskKey(b));
+		});
+		int idx = 0;
+		while (idx < availableForNew.size())
+		{
+			boolean s0 = isUnlockedSkillBracketTask(availableForNew.get(idx));
+			boolean u0 = isUnlockedAreaTask(availableForNew.get(idx), unlockedAreaIds);
+			boolean a0 = isAreaTask(availableForNew.get(idx));
+			int cl0 = collectionLogGridRank(availableForNew.get(idx));
+			int d0 = Math.max(1, Math.min(MAX_TIER, availableForNew.get(idx).getDifficulty()));
+			int j = idx + 1;
+			while (j < availableForNew.size())
+			{
+				boolean s = isUnlockedSkillBracketTask(availableForNew.get(j));
+				boolean u = isUnlockedAreaTask(availableForNew.get(j), unlockedAreaIds);
+				boolean a = isAreaTask(availableForNew.get(j));
+				int cl = collectionLogGridRank(availableForNew.get(j));
+				int d = Math.max(1, Math.min(MAX_TIER, availableForNew.get(j).getDifficulty()));
+				if (s != s0 || u != u0 || a != a0 || cl != cl0 || d != d0) break;
+				j++;
+			}
+			if (j > idx + 1)
+				Collections.shuffle(availableForNew.subList(idx, j), rnd);
+			idx = j;
+		}
+	}
+
+	/**
 	 * Builds the grid using lazy assignment: only assign a task to a cell when it is first revealed
 	 * (adjacent to a claimed cell). Center (0,0) is the anchor. Each task is used at most once (strict one-use).
 	 * Available tasks = no-area + unlocked World Unlock state only.
@@ -815,64 +874,43 @@ public class GlobalTaskListService
 			if (!usedTaskKeys.contains(taskKey(t)))
 				availableForNew.add(t);
 		}
-		// Unlocked area ids = area tiles that are unlocked in the World Unlock grid
+
+		Set<String> eligibleKeysNow = new HashSet<>(taskByKey.keySet());
+		Set<String> eligibleSnapshot = loadSet(KEY_GLOBAL_ELIGIBLE_SNAPSHOT);
+		Set<String> newlyEligibleKeys = new HashSet<>();
+		if (!eligibleSnapshot.isEmpty())
+		{
+			for (String k : eligibleKeysNow)
+			{
+				if (!eligibleSnapshot.contains(k))
+					newlyEligibleKeys.add(k);
+			}
+		}
+		List<TaskDefinition> newTasks = new ArrayList<>();
+		List<TaskDefinition> oldTasks = new ArrayList<>();
+		for (TaskDefinition t : availableForNew)
+		{
+			String k = taskKey(t);
+			if (!k.isEmpty() && newlyEligibleKeys.contains(k))
+				newTasks.add(t);
+			else
+				oldTasks.add(t);
+		}
+		Random rndNew = new Random((long) reshuffleSeed ^ ((long) newlyEligibleKeys.hashCode() * 31L) ^ (long) newTasks.size());
+		Collections.shuffle(newTasks, rndNew);
+
 		Set<String> unlockedAreaIds = worldUnlockService.getTiles().stream()
 			.filter(t -> "area".equals(t.getType()) && worldUnlockService.getUnlockedIds().contains(t.getId()))
 			.map(t -> t.getId())
 			.collect(Collectors.toSet());
-		// Prioritize: skill-bracket tasks first when their bracket is unlocked/revealed, then area tasks, then global tasks.
-		// Among Collection Log tasks: boss-gated first, then area-bound, then non-area-specific filler (rare on the grid).
-		availableForNew.sort((a, b) -> {
-			boolean aSkill = isUnlockedSkillBracketTask(a);
-			boolean bSkill = isUnlockedSkillBracketTask(b);
-			if (aSkill != bSkill) return aSkill ? -1 : 1;
-			boolean aUnlockedArea = isUnlockedAreaTask(a, unlockedAreaIds);
-			boolean bUnlockedArea = isUnlockedAreaTask(b, unlockedAreaIds);
-			if (aUnlockedArea != bUnlockedArea) return aUnlockedArea ? -1 : 1;
-			boolean aArea = isAreaTask(a);
-			boolean bArea = isAreaTask(b);
-			if (aArea != bArea) return aArea ? -1 : 1;
-			boolean aCl = TaskTypes.isCollectionLogType(a.getTaskType());
-			boolean bCl = TaskTypes.isCollectionLogType(b.getTaskType());
-			if (aCl && bCl)
-			{
-				int ra = collectionLogGridRank(a);
-				int rb = collectionLogGridRank(b);
-				if (ra != rb) return Integer.compare(rb, ra);
-			}
-			int da = Math.max(1, Math.min(MAX_TIER, a.getDifficulty()));
-			int db = Math.max(1, Math.min(MAX_TIER, b.getDifficulty()));
-			if (da != db) return Integer.compare(da, db);
-			boolean aNa = isCollectionLogWithoutBossOrArea(a);
-			boolean bNa = isCollectionLogWithoutBossOrArea(b);
-			if (aNa != bNa) return aNa ? 1 : -1;
-			return taskKey(a).compareTo(taskKey(b));
-		});
 		Random rnd = new Random(reshuffleSeed);
-		// Shuffle within same (unlockedArea, skillBracket, area, collectionLogRank, difficulty) to randomize order while keeping prioritization
-		int idx = 0;
-		while (idx < availableForNew.size())
-		{
-			boolean s0 = isUnlockedSkillBracketTask(availableForNew.get(idx));
-			boolean u0 = isUnlockedAreaTask(availableForNew.get(idx), unlockedAreaIds);
-			boolean a0 = isAreaTask(availableForNew.get(idx));
-			int cl0 = collectionLogGridRank(availableForNew.get(idx));
-			int d0 = Math.max(1, Math.min(MAX_TIER, availableForNew.get(idx).getDifficulty()));
-			int j = idx + 1;
-			while (j < availableForNew.size())
-			{
-				boolean s = isUnlockedSkillBracketTask(availableForNew.get(j));
-				boolean u = isUnlockedAreaTask(availableForNew.get(j), unlockedAreaIds);
-				boolean a = isAreaTask(availableForNew.get(j));
-				int cl = collectionLogGridRank(availableForNew.get(j));
-				int d = Math.max(1, Math.min(MAX_TIER, availableForNew.get(j).getDifficulty()));
-				if (s != s0 || u != u0 || a != a0 || cl != cl0 || d != d0) break;
-				j++;
-			}
-			if (j > idx + 1)
-				java.util.Collections.shuffle(availableForNew.subList(idx, j), rnd);
-			idx = j;
-		}
+		applyPrioritySortAndBucketShuffle(oldTasks, unlockedAreaIds, rnd);
+
+		availableForNew = new ArrayList<>(newTasks.size() + oldTasks.size());
+		availableForNew.addAll(newTasks);
+		availableForNew.addAll(oldTasks);
+
+		saveSet(KEY_GLOBAL_ELIGIBLE_SNAPSHOT, eligibleKeysNow);
 
 		// 6. Assign only to toAssign (newly revealed, not in grid state). Add to grid state and remove from available (one-use).
 		Comparator<int[]> byDistFromCenter = (a, b) -> {
@@ -1493,6 +1531,7 @@ public class GlobalTaskListService
 		configManager.unsetConfiguration(STATE_GROUP, KEY_GLOBAL_LAST_VIEWED);
 		configManager.unsetConfiguration(STATE_GROUP, KEY_GLOBAL_RING_BONUS);
 		configManager.unsetConfiguration(STATE_GROUP, KEY_GLOBAL_LAYOUT_SEED);
+		configManager.unsetConfiguration(STATE_GROUP, KEY_GLOBAL_ELIGIBLE_SNAPSHOT);
 	}
 
 	private static List<int[]> spiralOrderForRing(int tier)
