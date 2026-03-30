@@ -266,7 +266,7 @@ public interface LeagueScapeConfig extends Config
 	)
 	default UnlockMode unlockMode()
 	{
-		return UnlockMode.POINT_BUY;
+		return UnlockMode.WORLD_UNLOCK;
 	}
 
 	enum UnlockMode
