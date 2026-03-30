@@ -9,6 +9,8 @@ import com.leaguescape.icons.IconResolver;
 import com.leaguescape.area.AreaGraphService;
 import com.leaguescape.grid.GridPos;
 import com.leaguescape.data.Area;
+import com.leaguescape.util.FogTileCompositor;
+import com.leaguescape.util.FrontierFogHelpers;
 import com.leaguescape.util.GridClaimFocusAnimation;
 import com.leaguescape.util.PanelBoundsStore;
 import com.leaguescape.util.RingBonusPopup;
@@ -1567,9 +1569,14 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 		BufferedImage tileSquare = ImageUtil.loadImageResource(LeagueScapePlugin.class, "empty_button_square.png");
 		BufferedImage xBtnImg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "x_button.png");
 		BufferedImage checkmarkImg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "complete_checkmark.png");
-		BufferedImage padlockImg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "padlock_icon.png");
-		BufferedImage defaultTaskIcon = loadTaskIcon();
-		Map<String, BufferedImage> taskIconCache = new ConcurrentHashMap<>();
+			BufferedImage padlockImg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "padlock_icon.png");
+			BufferedImage fogTileBg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_base.png");
+			BufferedImage fogTopLeft = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_top_left.png");
+			BufferedImage fogTopRight = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_top_right.png");
+			BufferedImage fogBottomLeft = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_bottom_left.png");
+			BufferedImage fogBottomRight = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_bottom_right.png");
+			BufferedImage defaultTaskIcon = loadTaskIcon();
+			Map<String, BufferedImage> taskIconCache = new ConcurrentHashMap<>();
 
 		SwingUtilities.invokeLater(() -> {
 			if (openTaskGridDialog != null && openTaskGridDialog.isDisplayable())
@@ -1683,6 +1690,12 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				int center = grid.stream()
 					.mapToInt(t -> Math.max(Math.abs(t.getRow()), Math.abs(t.getCol())))
 					.max().orElse(5);
+				for (TaskTile tFog : grid)
+				{
+					if (taskGridService.getState(areaId, tFog.getId(), grid) != TaskState.LOCKED) continue;
+					if (!areaTileHasFogNeighbor(areaId, tFog, grid)) continue;
+					center = Math.max(center, Math.max(Math.abs(tFog.getRow()), Math.abs(tFog.getCol())));
+				}
 				int tileSize = Math.max(24, (int)(72 * zoomHolder[0]));
 				// Icon size and margin scale with tile so proportion stays the same when zooming
 				int iconMargin = Math.max(1, (tileSize * TASK_TILE_ICON_MARGIN) / 72);
@@ -1758,6 +1771,19 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 					}
 					JPanel cell = buildTaskCell(areaId, tile, state, checkmarkImg, padlockImg, tileSquare, buttonRect, taskIcon, POPUP_TEXT, refreshHolder[0], claimFocusAfter, dialog, area, isMystery, tileSize, iconMargin);
 					gridPanel.add(cell, gbc);
+				}
+				for (TaskTile tile : grid)
+				{
+					TaskState state = taskGridService.getState(areaId, tile.getId(), grid);
+					if (state != TaskState.LOCKED || !areaTileHasFogNeighbor(areaId, tile, grid)) continue;
+					int gx = tile.getCol() + center;
+					int gy = center - tile.getRow();
+					GridBagConstraints gbc = new GridBagConstraints();
+					gbc.gridx = gx;
+					gbc.gridy = gy;
+					gbc.insets = new Insets(2, 2, 2, 2);
+					JPanel fogCell = buildAreaFogCell(areaId, tile, grid, tileSize, fogTileBg, fogTopLeft, fogTopRight, fogBottomLeft, fogBottomRight);
+					gridPanel.add(fogCell, gbc);
 				}
 				gridPanel.revalidate();
 				gridPanel.repaint();
@@ -1863,6 +1889,60 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 
 	private static final int CLAIMED_CHECKMARK_SIZE = 18;
 	private static final int CLAIMED_CHECKMARK_INSET = 4;
+
+	/** True if any cardinal neighbor is REVEALED or COMPLETED_UNCLAIMED (frontier fog). */
+	private boolean areaTileHasFogNeighbor(String areaId, TaskTile tile, List<TaskTile> grid)
+	{
+		int[][] d = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } };
+		for (int[] x : d)
+		{
+			String nid = TaskTile.idFor(tile.getRow() + x[0], tile.getCol() + x[1]);
+			TaskTile n = null;
+			for (TaskTile t : grid)
+			{
+				if (t.getId().equals(nid))
+				{
+					n = t;
+					break;
+				}
+			}
+			if (n == null) continue;
+			TaskState st = taskGridService.getState(areaId, nid, grid);
+			if (FrontierFogHelpers.isRevealedUnclaimedTaskState(st)) return true;
+		}
+		return false;
+	}
+
+	/** Non-interactive fog shell for LOCKED tiles adjacent to revealed-unclaimed neighbors. */
+	private JPanel buildAreaFogCell(String areaId, TaskTile tile, List<TaskTile> grid, int tileSize,
+		BufferedImage fogTileBg, BufferedImage ftl, BufferedImage ftr, BufferedImage fbl, BufferedImage fbr)
+	{
+		Map<String, TaskTile> idMap = FrontierFogHelpers.idMap(grid);
+		boolean[] f = FrontierFogHelpers.cardinalFlagsForHiddenCell(tile.getRow(), tile.getCol(),
+			nid -> taskGridService.getState(areaId, nid, grid),
+			idMap::containsKey);
+		final BufferedImage bg = fogTileBg;
+		JPanel cell = new JPanel()
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				super.paintComponent(g);
+				if (bg != null)
+					g.drawImage(bg.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
+				else
+				{
+					g.setColor(new Color(60, 55, 50));
+					g.fillRect(0, 0, getWidth(), getHeight());
+				}
+				FogTileCompositor.paintFogQuadrants(g, getWidth(), getHeight(), f[0], f[1], f[2], f[3], ftl, ftr, fbl, fbr);
+			}
+		};
+		cell.setOpaque(false);
+		cell.setPreferredSize(new Dimension(tileSize, tileSize));
+		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
+		return cell;
+	}
 
 	private JPanel buildTaskCell(String areaId, TaskTile tile, TaskState state,
 		BufferedImage checkmarkImg, BufferedImage padlockImg, BufferedImage tileBg, BufferedImage buttonRect,

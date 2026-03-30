@@ -1179,6 +1179,23 @@ public class GlobalTaskListService
 	}
 
 	/**
+	 * Positions considered "revealed" for layout (center + claimed positions + cardinal neighbors of claimed).
+	 * Used for frontier fog: cells not in this set but adjacent to revealed-unclaimed tiles show fog.
+	 */
+	public Set<String> getRevealedPositionSet()
+	{
+		Set<String> revealedPositions = new HashSet<>();
+		revealedPositions.add("0,0");
+		Set<String> claimedPositions = getClaimedPositions();
+		for (String claimed : claimedPositions)
+		{
+			revealedPositions.add(normalizePos(claimed));
+			revealedPositions.addAll(getNeighborPositions(claimed));
+		}
+		return revealedPositions;
+	}
+
+	/**
 	 * Returns the state of a tile in the global task grid.
 	 * Center tile is always revealed; other tiles are revealed when a cardinal neighbor is claimed.
 	 */

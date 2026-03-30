@@ -13,6 +13,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
+import java.awt.AlphaComposite;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
@@ -20,6 +21,9 @@ import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
+import com.leaguescape.grid.GridPos;
+import com.leaguescape.util.FogTileCompositor;
+import com.leaguescape.util.FrontierFogHelpers;
 import com.leaguescape.util.GridClaimFocusAnimation;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
@@ -88,6 +92,12 @@ public class WorldUnlockGridPanel extends JPanel
 	private BufferedImage interfaceBg;
 	private BufferedImage buttonRect;
 	private BufferedImage xBtnImg;
+	/** Base fill for fog-only cells; not {@link #tileBg} (revealed tile button art). */
+	private BufferedImage fogTileBg;
+	private BufferedImage fogTopLeft;
+	private BufferedImage fogTopRight;
+	private BufferedImage fogBottomLeft;
+	private BufferedImage fogBottomRight;
 	private JLabel pointsLabel;
 	private JPanel gridPanel;
 	/** Scroll pane for the grid; used by tile pan-scroll (same behavior as task grids). */
@@ -124,6 +134,11 @@ public class WorldUnlockGridPanel extends JPanel
 		interfaceBg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "interface_template.png");
 		buttonRect = ImageUtil.loadImageResource(LeagueScapePlugin.class, "empty_button_rectangle.png");
 		xBtnImg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "x_button.png");
+		fogTileBg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_base.png");
+		fogTopLeft = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_top_left.png");
+		fogTopRight = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_top_right.png");
+		fogBottomLeft = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_bottom_left.png");
+		fogBottomRight = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_bottom_right.png");
 
 		setLayout(new BorderLayout(8, 8));
 		setBackground(POPUP_BG);
@@ -277,9 +292,37 @@ public class WorldUnlockGridPanel extends JPanel
 		List<WorldUnlockTilePlacement> grid = worldUnlockService.getGrid();
 		if (grid.isEmpty()) { gridPanel.revalidate(); gridPanel.repaint(); return; }
 
+		// Frontier fog: same rule as global task grid — cardinal neighbors of revealed "unclaimed" tiles that are not yet revealed positions (may be empty cells).
+		Set<String> revealedPos = new HashSet<>();
+		for (WorldUnlockTilePlacement p : grid)
+		{
+			if (worldUnlockService.isRevealed(p, claimed, grid))
+				revealedPos.add(p.getRow() + "," + p.getCol());
+		}
+		int[][] fogDeltas = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } };
+		Set<String> fogPositions = new HashSet<>();
+		for (WorldUnlockTilePlacement p : grid)
+		{
+			if (!worldUnlockService.isRevealed(p, claimed, grid)) continue;
+			String tid = p.getTile().getId();
+			if (claimed.contains(tid)) continue;
+			int r = p.getRow(), c = p.getCol();
+			for (int[] d : fogDeltas)
+			{
+				String nid = (r + d[0]) + "," + (c + d[1]);
+				if (!revealedPos.contains(nid))
+					fogPositions.add(nid);
+			}
+		}
 		int maxRing = grid.stream()
 			.mapToInt(p -> Math.max(Math.abs(p.getRow()), Math.abs(p.getCol())))
 			.max().orElse(0);
+		for (String fp : fogPositions)
+		{
+			int[] rc = GridPos.parse(fp);
+			if (rc != null)
+				maxRing = Math.max(maxRing, Math.max(Math.abs(rc[0]), Math.abs(rc[1])));
+		}
 
 		int tileSize = Math.max(24, (int) (BASE_TILE_SIZE * zoom));
 		int iconMargin = Math.max(1, (tileSize * TILE_ICON_MARGIN) / BASE_TILE_SIZE);
@@ -305,6 +348,18 @@ public class WorldUnlockGridPanel extends JPanel
 			gbc.insets = new Insets(2, 2, 2, 2);
 			gridPanel.add(cell, gbc);
 		}
+		for (String fp : fogPositions)
+		{
+			int[] rc = GridPos.parse(fp);
+			if (rc == null) continue;
+			boolean[] f = FrontierFogHelpers.cardinalFlagsWorldUnlock(rc[0], rc[1], worldUnlockService, claimed, grid);
+			if (!f[0] && !f[1] && !f[2] && !f[3]) continue;
+			GridBagConstraints gbc = new GridBagConstraints();
+			gbc.gridx = rc[1] + maxRing;
+			gbc.gridy = maxRing - rc[0];
+			gbc.insets = new Insets(2, 2, 2, 2);
+			gridPanel.add(buildFogOnlyCell(f, tileSize), gbc);
+		}
 		gridPanel.revalidate();
 		gridPanel.repaint();
 
@@ -321,6 +376,42 @@ public class WorldUnlockGridPanel extends JPanel
 				vp.setViewPosition(p);
 			});
 		}
+	}
+
+	/**
+	 * Non-interactive frontier fog for grid coordinates with no placement yet (or not covered by a revealed tile);
+	 * edge art toward revealed unlocked-unclaimed neighbors. Same placement rules as the global task grid fog ring.
+	 * {@code edgeFlags} is {@code [north, east, south, west]} from {@link com.leaguescape.util.FrontierFogHelpers#cardinalFlagsWorldUnlock};
+	 * {@link com.leaguescape.util.FogTileCompositor} maps geographic cardinals to screen quadrants (same convention as task grids).
+	 */
+	private JPanel buildFogOnlyCell(boolean[] edgeFlags, int tileSize)
+	{
+		final BufferedImage bg = fogTileBg;
+		final BufferedImage ftl = fogTopLeft;
+		final BufferedImage ftr = fogTopRight;
+		final BufferedImage fbl = fogBottomLeft;
+		final BufferedImage fbr = fogBottomRight;
+		final boolean[] f = edgeFlags;
+		JPanel cell = new JPanel()
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				super.paintComponent(g);
+				if (bg != null)
+					g.drawImage(bg.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
+				else
+				{
+					g.setColor(new Color(60, 55, 50));
+					g.fillRect(0, 0, getWidth(), getHeight());
+				}
+				FogTileCompositor.paintFogQuadrants(g, getWidth(), getHeight(), f[0], f[1], f[2], f[3], ftl, ftr, fbl, fbr);
+			}
+		};
+		cell.setOpaque(false);
+		cell.setPreferredSize(new Dimension(tileSize, tileSize));
+		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
+		return cell;
 	}
 
 	private int[] findRowColForTileId(String tileId)
@@ -487,9 +578,15 @@ public class WorldUnlockGridPanel extends JPanel
 			return buildClaimedCell(tile, isCenter, tileIcon, tileSize, iconMargin);
 		if (isUnlocked)
 			return buildRevealedUnclaimedCell(tile, isCenter, tileIcon, tileSize, iconMargin);
-		// else: revealed but not unlocked (locked) — padlock top-right, size scales with tile when zoomed
+		// else: revealed but not unlocked (locked) — padlock top-right, size scales with tile when zoomed; frontier fog corners like fog-only cells
 		final BufferedImage bg = tileBg;
 		final BufferedImage padlock = padlockImg;
+		final BufferedImage ftl = fogTopLeft;
+		final BufferedImage ftr = fogTopRight;
+		final BufferedImage fbl = fogBottomLeft;
+		final BufferedImage fbr = fogBottomRight;
+		final int fogRow = placement.getRow();
+		final int fogCol = placement.getCol();
 
 		JPanel cell = new JPanel()
 		{
@@ -503,6 +600,9 @@ public class WorldUnlockGridPanel extends JPanel
 					g.setColor(new Color(60, 55, 50));
 					g.fillRect(0, 0, getWidth(), getHeight());
 				}
+				boolean[] f = FrontierFogHelpers.cardinalFlagsWorldUnlock(fogRow, fogCol, worldUnlockService, claimed, grid);
+				if (f[0] || f[1] || f[2] || f[3])
+					FogTileCompositor.paintFogQuadrants(g, getWidth(), getHeight(), f[0], f[1], f[2], f[3], ftl, ftr, fbl, fbr);
 				if (padlock != null)
 				{
 					int w = getWidth(), h = getHeight();
@@ -511,7 +611,7 @@ public class WorldUnlockGridPanel extends JPanel
 					int x = w - s - inset;
 					int y = inset;
 					Graphics2D g2 = (Graphics2D) g.create();
-					g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.35f));
+					g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.35f));
 					g2.drawImage(padlock.getScaledInstance(s, s, Image.SCALE_SMOOTH), x, y, null);
 					g2.dispose();
 				}
@@ -618,7 +718,7 @@ public class WorldUnlockGridPanel extends JPanel
 				if (isCenter && padlock != null)
 				{
 					Graphics2D g2 = (Graphics2D) g.create();
-					g2.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, 0.35f));
+					g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.35f));
 					int s = Math.min(getWidth(), getHeight()) * 3 / 4;
 					g2.drawImage(padlock.getScaledInstance(s, s, Image.SCALE_SMOOTH), (getWidth() - s) / 2, (getHeight() - s) / 2, null);
 					g2.dispose();

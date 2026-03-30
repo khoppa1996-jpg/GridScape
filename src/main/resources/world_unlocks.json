@@ -3574,7 +3574,7 @@
       "id": "below_ice_mountain",
       "displayName": "Below Ice Mountain",
       "tier": 1,
-      "prerequisites": ["lassar, edgeville, varrock, falador"],
+      "prerequisites": ["lassar", "edgeville", "varrock", "falador"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Below Ice Mountain" }
     },
     {
@@ -3582,7 +3582,7 @@
       "id": "x_marks_the_spot",
       "displayName": "X Marks the Spot",
       "tier": 1,
-      "prerequisites": ["lumbridge, draynor, port_sarim_mudskipper"],
+      "prerequisites": ["lumbridge", "draynor", "port_sarim_mudskipper"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "X Marks the Spot" }
     },
     {
@@ -3606,7 +3606,7 @@
       "id": "rune_mysteries",
       "displayName": "Rune Mysteries",
       "tier": 1,
-      "prerequisites": ["lumbridge, draynor, varrock"],
+      "prerequisites": ["lumbridge", "draynor", "varrock"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Rune Mysteries" }
     },
     {
@@ -3614,7 +3614,7 @@
       "id": "dragon_slayer_i",
       "displayName": "Dragon Slayer I",
       "tier": 3,
-      "prerequisites": ["varrock, lassar, lumbridge, rimmington, draynor, edgeville, musa_point, port_sarim_mudskipper"],
+      "prerequisites": ["varrock", "lassar", "lumbridge", "rimmington", "draynor", "edgeville", "musa_point", "port_sarim_mudskipper"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Dragon Slayer I" }
     },
     {
@@ -3622,7 +3622,7 @@
       "id": "pirates_treasure",
       "displayName": "Pirate's Treasure",
       "tier": 1,
-      "prerequisites": ["port_sarim_mudskipper, falador, musa_point, varrock"],
+      "prerequisites": ["port_sarim_mudskipper", "falador", "musa_point", "varrock"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Pirate's Treasure" }
     },
     {
@@ -3630,7 +3630,7 @@
       "id": "goblin_diplomacy",
       "displayName": "Goblin Diplomacy",
       "tier": 1,
-      "prerequisites": ["lassar, falador, draynor, varrock"],
+      "prerequisites": ["lassar", "falador", "draynor", "varrock"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Goblin Diplomacy" }
     },
     {
@@ -3638,7 +3638,7 @@
       "id": "the_knights_sword",
       "displayName": "The Knight's Sword",
       "tier": 2,
-      "prerequisites": ["falador, port_sarim_mudskipper"],
+      "prerequisites": ["falador", "port_sarim_mudskipper"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "The Knight's Sword" }
     },
     {
@@ -3646,7 +3646,7 @@
       "id": "witchs_potion",
       "displayName": "Witch's Potion",
       "tier": 1,
-      "prerequisites": ["rimmington, port_sarim_mudskipper"],
+      "prerequisites": ["rimmington", "port_sarim_mudskipper"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Witch's Potion" }
     },
     {
@@ -3654,7 +3654,7 @@
       "id": "black_knights_fortress",
       "displayName": "Black Knights' Fortress",
       "tier": 2,
-      "prerequisites": ["falador, edgeville, lassar"],
+      "prerequisites": ["falador", "edgeville", "lassar"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Black Knights' Fortress" }
     },
     {
@@ -3670,7 +3670,7 @@
       "id": "prince_ali_rescue",
       "displayName": "Prince Ali Rescue",
       "tier": 1,
-      "prerequisites": ["al_kharid,lumbridge,draynor"],
+      "prerequisites": ["al_kharid", "lumbridge", "draynor"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Prince Ali Rescue" }
     },
     {
@@ -3694,7 +3694,7 @@
       "id": "vampyre_slayer",
       "displayName": "Vampyre Slayer",
       "tier": 2,
-      "prerequisites": ["draynor, varrock"],
+      "prerequisites": ["draynor", "varrock"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Vampyre Slayer" }
     },
     {
@@ -3710,7 +3710,7 @@
       "id": "the_restless_ghost",
       "displayName": "The Restless Ghost",
       "tier": 1,
-      "prerequisites": ["lumbridge, draynor"],
+      "prerequisites": ["lumbridge", "draynor"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "The Restless Ghost" }
     },
     {
@@ -3734,7 +3734,7 @@
       "id": "demon_slayer",
       "displayName": "Demon Slayer",
       "tier": 1,
-      "prerequisites": ["varrock, draynor"],
+      "prerequisites": ["varrock", "draynor"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Demon Slayer" }
     },
     {
@@ -3766,7 +3766,7 @@
       "id": "enter_the_abyss",
       "displayName": "Enter the Abyss",
       "tier": 2,
-      "prerequisites": ["south_central_wilderness, varrock, falador, lumbridge, al_kharid"],
+      "prerequisites": ["south_central_wilderness", "varrock", "falador", "lumbridge", "al_kharid"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Enter the Abyss" }
     },
     {
@@ -3790,7 +3790,7 @@
       "id": "skippy_and_the_mogres",
       "displayName": "Skippy and the Mogres",
       "tier": 1,
-      "prerequisites": ["rimmington, port_sarim_mudskipper"],
+      "prerequisites": ["rimmington", "port_sarim_mudskipper"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Skippy and the Mogres" }
     },
     {
@@ -3846,7 +3846,7 @@
       "id": "mage_arena_ii",
       "displayName": "Mage Arena II",
       "tier": 4,
-      "prerequisites": ["mage_arena_i,deep_wilderness,northeast_wilderness,southeast_wilderness,south_central_wilderness,southwestern_wilderness,north_central_wilderness,northwestern_wilderness"],
+      "prerequisites": ["mage_arena_i", "deep_wilderness", "northeast_wilderness", "southeast_wilderness", "south_central_wilderness", "southwestern_wilderness", "north_central_wilderness", "northwestern_wilderness"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Mage Arena II" }
     },
     {
@@ -3854,7 +3854,7 @@
       "id": "in_search_of_knowledge",
       "displayName": "In Search of Knowledge",
       "tier": 3,
-      "prerequisites": ["hosidius,arceuus, kourend_woodland"],
+      "prerequisites": ["hosidius", "arceuus", "kourend_woodland"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "In Search of Knowledge" }
     },
     {

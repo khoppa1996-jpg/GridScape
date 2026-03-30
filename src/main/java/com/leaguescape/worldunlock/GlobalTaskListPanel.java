@@ -3,6 +3,8 @@ package com.leaguescape.worldunlock;
 import com.leaguescape.LeagueScapePlugin;
 import com.leaguescape.LeagueScapeSounds;
 import com.leaguescape.grid.GridPos;
+import com.leaguescape.util.FogTileCompositor;
+import com.leaguescape.util.FrontierFogHelpers;
 import com.leaguescape.util.GridClaimFocusAnimation;
 import com.leaguescape.util.RingBonusPopup;
 import com.leaguescape.icons.IconCache;
@@ -30,8 +32,10 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.image.BufferedImage;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
@@ -88,6 +92,12 @@ public class GlobalTaskListPanel extends JPanel
 	private BufferedImage buttonRect;
 	private BufferedImage xBtnImg;
 	private BufferedImage defaultTaskIcon;
+	/** Base fill for frontier fog cells; not {@link #tileBg} (revealed task button art). */
+	private BufferedImage fogTileBg;
+	private BufferedImage fogTopLeft;
+	private BufferedImage fogTopRight;
+	private BufferedImage fogBottomLeft;
+	private BufferedImage fogBottomRight;
 	private JLabel pointsLabel;
 	private JPanel gridPanel;
 	private JScrollPane scrollPane;
@@ -122,6 +132,11 @@ public class GlobalTaskListPanel extends JPanel
 		buttonRect = ImageUtil.loadImageResource(LeagueScapePlugin.class, "empty_button_rectangle.png");
 		xBtnImg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "x_button.png");
 		defaultTaskIcon = loadDefaultTaskIcon();
+		fogTileBg = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_base.png");
+		fogTopLeft = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_top_left.png");
+		fogTopRight = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_top_right.png");
+		fogBottomLeft = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_bottom_left.png");
+		fogBottomRight = ImageUtil.loadImageResource(LeagueScapePlugin.class, "/com/leaguescape/fog_tile_corner_bottom_right.png");
 
 		setLayout(new BorderLayout(8, 8));
 		setBackground(POPUP_BG);
@@ -261,11 +276,6 @@ public class GlobalTaskListPanel extends JPanel
 		// Build grid from service (center + revealed adjacent + locked positions)
 		List<TaskTile> grid = globalTaskListService.buildGlobalGrid(layoutSeed);
 
-		// maxRing = grid extent for layout (gridx/gridy range 0..2*maxRing)
-		int maxRing = grid.stream()
-			.mapToInt(t -> Math.max(Math.abs(t.getRow()), Math.abs(t.getCol())))
-			.max().orElse(5);
-
 		int tileSize = Math.max(24, (int) (BASE_TILE_SIZE * zoom));
 		int iconMargin = Math.max(1, (tileSize * TASK_TILE_ICON_MARGIN) / BASE_TILE_SIZE);
 		int iconMaxFit = Math.max(1, tileSize - 2 * iconMargin);
@@ -275,6 +285,31 @@ public class GlobalTaskListPanel extends JPanel
 		int refSize = (combatScaled != null) ? Math.max(combatScaled.getWidth(), combatScaled.getHeight()) : iconMaxFit;
 
 		final List<TaskTile> gridFinal = grid;
+		Set<String> revealedPosSet = globalTaskListService.getRevealedPositionSet();
+		Set<String> fogPositions = new HashSet<>();
+		for (TaskTile t : gridFinal)
+		{
+			TaskState st = globalTaskListService.getGlobalState(t.getId(), gridFinal);
+			if (!FrontierFogHelpers.isRevealedUnclaimedTaskState(st)) continue;
+			int r = t.getRow(), c = t.getCol();
+			int[][] deltas = { { -1, 0 }, { 0, 1 }, { 1, 0 }, { 0, -1 } };
+			for (int[] d : deltas)
+			{
+				String nid = TaskTile.idFor(r + d[0], c + d[1]);
+				if (!revealedPosSet.contains(nid))
+					fogPositions.add(nid);
+			}
+		}
+		int maxRing = grid.stream()
+			.mapToInt(t -> Math.max(Math.abs(t.getRow()), Math.abs(t.getCol())))
+			.max().orElse(5);
+		for (String fp : fogPositions)
+		{
+			int[] rc = GridPos.parse(fp);
+			if (rc != null)
+				maxRing = Math.max(maxRing, Math.max(Math.abs(rc[0]), Math.abs(rc[1])));
+		}
+
 		int displayedCount = 0;
 		// Iterate all tiles in grid; skip LOCKED (not revealed)
 		for (TaskTile tile : grid)
@@ -317,6 +352,20 @@ public class GlobalTaskListPanel extends JPanel
 			// Build cell (clickable, shows icon/state) and add to grid
 			JPanel cell = buildTaskCell(tile, state, taskIcon, tileSize, iconMargin, isCenter, gridFinal);
 			gridPanel.add(cell, gbc);
+		}
+
+		for (String fp : fogPositions)
+		{
+			int[] rc = GridPos.parse(fp);
+			if (rc == null) continue;
+			displayedCount++;
+			int gx = rc[1] + maxRing;
+			int gy = maxRing - rc[0];
+			GridBagConstraints gbc = new GridBagConstraints();
+			gbc.gridx = gx;
+			gbc.gridy = gy;
+			gbc.insets = new Insets(2, 2, 2, 2);
+			gridPanel.add(buildFogCell(rc[0], rc[1], gridFinal, tileSize), gbc);
 		}
 
 		log.debug("[GlobalTaskPanel] refresh: grid size={}, displayed tiles={}", grid.size(), displayedCount);
@@ -451,6 +500,40 @@ public class GlobalTaskListPanel extends JPanel
 			}
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+		return cell;
+	}
+
+	/** Frontier fog for positions not yet revealed; non-interactive. Edge art toward revealed-unclaimed neighbors. */
+	private JPanel buildFogCell(int row, int col, List<TaskTile> grid, int tileSize)
+	{
+		final BufferedImage bg = fogTileBg;
+		final BufferedImage ftl = fogTopLeft;
+		final BufferedImage ftr = fogTopRight;
+		final BufferedImage fbl = fogBottomLeft;
+		final BufferedImage fbr = fogBottomRight;
+		Map<String, TaskTile> idMap = FrontierFogHelpers.idMap(grid);
+		boolean[] f = FrontierFogHelpers.cardinalFlagsForHiddenCell(row, col,
+			nid -> globalTaskListService.getGlobalState(nid, grid),
+			nid -> idMap.containsKey(nid));
+		JPanel cell = new JPanel()
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				super.paintComponent(g);
+				if (bg != null)
+					g.drawImage(bg.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
+				else
+				{
+					g.setColor(new Color(60, 55, 50));
+					g.fillRect(0, 0, getWidth(), getHeight());
+				}
+				FogTileCompositor.paintFogQuadrants(g, getWidth(), getHeight(), f[0], f[1], f[2], f[3], ftl, ftr, fbl, fbr);
+			}
+		};
+		cell.setOpaque(false);
+		cell.setPreferredSize(new Dimension(tileSize, tileSize));
+		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
 		return cell;
 	}
 
