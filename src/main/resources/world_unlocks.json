@@ -1611,6 +1611,86 @@
     },
     {
       "type": "skill",
+      "id": "construction_1_10",
+      "displayName": "Construction 1-10",
+      "tier": 1,
+      "prerequisites": [],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 1, "levelMax": 10 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_11_20",
+      "displayName": "Construction 11-20",
+      "tier": 1,
+      "prerequisites": ["construction_1_10"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 11, "levelMax": 20 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_21_30",
+      "displayName": "Construction 21-30",
+      "tier": 1,
+      "prerequisites": ["construction_11_20"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 21, "levelMax": 30 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_31_40",
+      "displayName": "Construction 31-40",
+      "tier": 1,
+      "prerequisites": ["construction_21_30"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 31, "levelMax": 40 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_41_50",
+      "displayName": "Construction 41-50",
+      "tier": 2,
+      "prerequisites": ["construction_31_40"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 41, "levelMax": 50 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_51_60",
+      "displayName": "Construction 51-60",
+      "tier": 2,
+      "prerequisites": ["construction_41_50"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 51, "levelMax": 60 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_61_70",
+      "displayName": "Construction 61-70",
+      "tier": 3,
+      "prerequisites": ["construction_51_60"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 61, "levelMax": 70 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_71_80",
+      "displayName": "Construction 71-80",
+      "tier": 3,
+      "prerequisites": ["construction_61_70"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 71, "levelMax": 80 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_81_90",
+      "displayName": "Construction 81-90",
+      "tier": 4,
+      "prerequisites": ["construction_71_80"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 81, "levelMax": 90 }
+    },
+    {
+      "type": "skill",
+      "id": "construction_91_99",
+      "displayName": "Construction 91-99",
+      "tier": 5,
+      "prerequisites": ["construction_81_90"],
+      "taskLink": { "type": "skill", "skillName": "Construction", "levelMin": 91, "levelMax": 99 }
+    },
+    {
+      "type": "skill",
       "id": "magic_1_10",
       "displayName": "Magic 1-10",
       "tier": 1,
@@ -2182,7 +2262,7 @@
       "id": "lost_city",
       "displayName": "Lost City",
       "tier": 2,
-      "prerequisites": ["lumbridge"],
+      "prerequisites": ["lumbridge", "entrana"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Lost City" }
     },
     {
@@ -2790,7 +2870,7 @@
       "id": "fairytale_i_growing_pains",
       "displayName": "Fairytale I - Growing Pains",
       "tier": 2,
-      "prerequisites": ["draynor"],
+      "prerequisites": ["lost_city"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Fairytale I - Growing Pains" }
     },
     {
@@ -2854,7 +2934,7 @@
       "id": "fairytale_ii_cure_a_queen",
       "displayName": "Fairytale II - Cure a Queen",
       "tier": 3,
-      "prerequisites": ["draynor"],
+      "prerequisites": ["fairytale_i_growing_pains"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Fairytale II - Cure a Queen" }
     },
     {
@@ -2862,7 +2942,7 @@
       "id": "lunar_diplomacy",
       "displayName": "Lunar Diplomacy",
       "tier": 3,
-      "prerequisites": ["rellekka", "fremennik_isles"],
+      "prerequisites": ["the_fremennik_trials", "fremennik_isles"],
       "taskLink": { "type": "taskFilter", "taskType": "Quest", "requirementsContains": "Lunar Diplomacy" }
     },
     {
@@ -3879,11 +3959,11 @@
     { "type": "boss", "id": "crystalline_hunllef", "displayName": "Crystalline Hunllef", "tier": 4, "cost": 100, "prerequisites": ["Song of the Elves"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Crystalline Hunllef" } },
     { "type": "boss", "id": "corrupted_hunllef", "displayName": "Corrupted Hunllef", "tier": 5, "cost": 125, "prerequisites": ["Song of the Elves"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Corrupted Hunllef" } },
     { "type": "boss", "id": "tztok_jad", "displayName": "TzTok-Jad", "tier": 2, "cost": 35, "prerequisites": ["musa_point"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "TzTok-Jad" } },
-    { "type": "boss", "id": "tzkal_zuk", "displayName": "TzKal-Zuk", "tier": 5, "cost": 125, "prerequisites": ["Fire cape"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "TzKal-Zuk" } },
-    { "type": "boss", "id": "sol_heredit", "displayName": "Sol Heredit", "tier": 5, "cost": 125, "prerequisites": ["Children of the Sun"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Sol Heredit" } },
+    { "type": "boss", "id": "tzkal_zuk", "displayName": "TzKal-Zuk", "tier": 5, "cost": 125, "prerequisites": ["tz_tok_jad"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "TzKal-Zuk" } },
+    { "type": "boss", "id": "sol_heredit", "displayName": "Sol Heredit", "tier": 5, "cost": 125, "prerequisites": ["eastern_varlamore"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Sol Heredit" } },
     { "type": "boss", "id": "tempoross", "displayName": "Tempoross", "tier": 1, "cost": 15, "prerequisites": ["ruins_of_unkah"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Tempoross" } },
     { "type": "boss", "id": "wintertodt", "displayName": "Wintertodt", "tier": 1, "cost": 15, "prerequisites": ["northern_kourend"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Wintertodt" } },
-    { "type": "boss", "id": "zalcano", "displayName": "Zalcano", "tier": 3, "cost": 75, "prerequisites": ["Song of the Elves"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Zalcano" } },
+    { "type": "boss", "id": "zalcano", "displayName": "Zalcano", "tier": 3, "cost": 75, "prerequisites": ["prifddinas"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Zalcano" } },
     { "type": "boss", "id": "chambers_of_xeric", "displayName": "Chambers of Xeric", "tier": 5, "cost": 125, "prerequisites": ["kebos_swamp"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Chambers of Xeric" } },
     { "type": "boss", "id": "theatre_of_blood", "displayName": "Theatre of Blood", "tier": 5, "cost": 125, "prerequisites": ["myreditch"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Theatre of Blood" } },
     { "type": "boss", "id": "tombs_of_amascut", "displayName": "Tombs of Amascut", "tier": 5, "cost": 125, "prerequisites": ["necropolis"], "taskLink": { "type": "taskFilter", "taskType": "Boss", "requirementsContains": "Tombs of Amascut" } },

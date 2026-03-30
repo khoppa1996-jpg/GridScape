@@ -7,7 +7,6 @@ import com.leaguescape.icons.IconCache;
 import com.leaguescape.icons.IconResolver;
 import com.leaguescape.icons.IconResources;
 import com.leaguescape.points.PointsService;
-import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -21,6 +20,7 @@ import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
+import com.leaguescape.util.GridClaimFocusAnimation;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -43,6 +43,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -51,7 +52,6 @@ import net.runelite.api.Client;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.util.ImageUtil;
-import com.leaguescape.util.FogOfWarOverlay;
 import com.leaguescape.util.LeagueScapeSwingUtil;
 
 /**
@@ -90,6 +90,12 @@ public class WorldUnlockGridPanel extends JPanel
 	private BufferedImage xBtnImg;
 	private JLabel pointsLabel;
 	private JPanel gridPanel;
+	/** Scroll pane for the grid; used by tile pan-scroll (same behavior as task grids). */
+	private final JScrollPane gridScrollPane;
+	private final Point[] gridPanDragStart = new Point[1];
+	/** After claim, animate zoom/scroll to this tile until animation completes. */
+	private Integer pendingClaimFocusRow;
+	private Integer pendingClaimFocusCol;
 	private float zoom = 1.0f;
 	/** Matches {@link GlobalTaskListPanel} extreme zoom-out range. */
 	private static final float ZOOM_MIN = 0.05f;
@@ -153,15 +159,15 @@ public class WorldUnlockGridPanel extends JPanel
 		gridPanel.setLayout(new GridBagLayout());
 		gridPanel.setOpaque(false);
 
-		JScrollPane scrollPane = new JScrollPane(gridPanel);
-		scrollPane.setOpaque(false);
-		scrollPane.getViewport().setOpaque(false);
-		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-		scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-		scrollPane.setPreferredSize(new Dimension(400, 320));
-		scrollPane.setBorder(null);
+		gridScrollPane = new JScrollPane(gridPanel);
+		gridScrollPane.setOpaque(false);
+		gridScrollPane.getViewport().setOpaque(false);
+		gridScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		gridScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+		gridScrollPane.setPreferredSize(new Dimension(400, 320));
+		gridScrollPane.setBorder(null);
 
-		scrollPane.getViewport().addMouseWheelListener(e -> {
+		gridScrollPane.getViewport().addMouseWheelListener(e -> {
 			float prev = zoom;
 			if (e.getWheelRotation() < 0)
 				zoom = Math.min(ZOOM_MAX, zoom + ZOOM_STEP);
@@ -174,28 +180,37 @@ public class WorldUnlockGridPanel extends JPanel
 			}
 		});
 
-		final Point[] dragStart = new Point[1];
-		scrollPane.getViewport().addMouseListener(new MouseAdapter()
+		gridScrollPane.getViewport().addMouseListener(new MouseAdapter()
 		{
 			@Override
-			public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
+			public void mousePressed(MouseEvent e)
+			{
+				gridPanDragStart[0] = e.getPoint();
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				gridPanDragStart[0] = null;
+			}
 		});
-		scrollPane.getViewport().addMouseMotionListener(new MouseMotionAdapter()
+		gridScrollPane.getViewport().addMouseMotionListener(new MouseMotionAdapter()
 		{
 			@Override
 			public void mouseDragged(MouseEvent e)
 			{
-				if (dragStart[0] == null) return;
-				Point vp = scrollPane.getViewport().getViewPosition();
-				int dx = dragStart[0].x - e.getX();
-				int dy = dragStart[0].y - e.getY();
-				int nx = Math.max(0, Math.min(vp.x + dx, scrollPane.getViewport().getViewSize().width - scrollPane.getViewport().getExtentSize().width));
-				int ny = Math.max(0, Math.min(vp.y + dy, scrollPane.getViewport().getViewSize().height - scrollPane.getViewport().getExtentSize().height));
-				scrollPane.getViewport().setViewPosition(new Point(nx, ny));
-				dragStart[0] = e.getPoint();
+				if (gridPanDragStart[0] == null) return;
+				JViewport viewport = gridScrollPane.getViewport();
+				Point pos = viewport.getViewPosition();
+				int dx = gridPanDragStart[0].x - e.getX();
+				int dy = gridPanDragStart[0].y - e.getY();
+				int nx = Math.max(0, Math.min(pos.x + dx, viewport.getViewSize().width - viewport.getExtentSize().width));
+				int ny = Math.max(0, Math.min(pos.y + dy, viewport.getViewSize().height - viewport.getExtentSize().height));
+				viewport.setViewPosition(new Point(nx, ny));
+				gridPanDragStart[0] = e.getPoint();
 			}
 		});
-		add(scrollPane, BorderLayout.CENTER);
+		add(gridScrollPane, BorderLayout.CENTER);
 
 		JPanel south = new JPanel(new BorderLayout(8, 0));
 		south.setOpaque(false);
@@ -270,32 +285,10 @@ public class WorldUnlockGridPanel extends JPanel
 		int iconMargin = Math.max(1, (tileSize * TILE_ICON_MARGIN) / BASE_TILE_SIZE);
 		int iconMaxFit = Math.max(1, tileSize - 2 * iconMargin);
 
-		Map<String, Boolean> revealedAt = new HashMap<>();
-		for (WorldUnlockTilePlacement p : grid)
-		{
-			revealedAt.put(p.getRow() + "," + p.getCol(), worldUnlockService.isRevealed(p, claimed, grid));
-		}
-
 		for (WorldUnlockTilePlacement placement : grid)
 		{
-			int row = placement.getRow();
-			int col = placement.getCol();
-			String posKey = row + "," + col;
-			if (!Boolean.TRUE.equals(revealedAt.get(posKey)))
-			{
-				boolean clearTop = Boolean.TRUE.equals(revealedAt.get((row + 1) + "," + col));
-				boolean clearBottom = Boolean.TRUE.equals(revealedAt.get((row - 1) + "," + col));
-				boolean clearLeft = Boolean.TRUE.equals(revealedAt.get(row + "," + (col - 1)));
-				boolean clearRight = Boolean.TRUE.equals(revealedAt.get(row + "," + (col + 1)));
-				JPanel fogCell = buildFoggedUnrevealedCell(placement, tileSize, iconMargin, iconMaxFit,
-					clearTop, clearBottom, clearLeft, clearRight);
-				GridBagConstraints gbcFog = new GridBagConstraints();
-				gbcFog.gridx = col + maxRing;
-				gbcFog.gridy = maxRing - row;
-				gbcFog.insets = new Insets(2, 2, 2, 2);
-				gridPanel.add(fogCell, gbcFog);
+			if (!worldUnlockService.isRevealed(placement, claimed, grid))
 				continue;
-			}
 
 			WorldUnlockTile tile = placement.getTile();
 			boolean isCenter = placement.getRow() == 0 && placement.getCol() == 0;
@@ -314,57 +307,32 @@ public class WorldUnlockGridPanel extends JPanel
 		}
 		gridPanel.revalidate();
 		gridPanel.repaint();
+
+		if (pendingClaimFocusRow != null && pendingClaimFocusCol != null)
+		{
+			final int fr = pendingClaimFocusRow;
+			final int fc = pendingClaimFocusCol;
+			final int mr = maxRing;
+			final int ts = tileSize;
+			SwingUtilities.invokeLater(() -> {
+				JViewport vp = gridScrollPane.getViewport();
+				if (vp == null) return;
+				Point p = GridClaimFocusAnimation.computeViewPositionForTile(vp, gridPanel, fr, fc, mr, ts, 4);
+				vp.setViewPosition(p);
+			});
+		}
 	}
 
-	/** Unrevealed tile: dim icon under fog; edges bordering revealed tiles stay clearer. */
-	private JPanel buildFoggedUnrevealedCell(WorldUnlockTilePlacement placement, int tileSize, int iconMargin, int iconMaxFit,
-		boolean clearTop, boolean clearBottom, boolean clearLeft, boolean clearRight)
+	private int[] findRowColForTileId(String tileId)
 	{
-		final BufferedImage bg = tileBg;
-		final BufferedImage iconDim = loadUnlockTileIcon(placement.getTile(), iconMaxFit);
-		final Color fogBg = POPUP_BG;
-		JPanel cell = new JPanel()
+		for (WorldUnlockTilePlacement p : worldUnlockService.getGrid())
 		{
-			@Override
-			protected void paintComponent(Graphics g)
+			if (p.getTile().getId().equals(tileId))
 			{
-				Graphics2D g2 = (Graphics2D) g.create();
-				if (bg != null)
-				{
-					g2.drawImage(bg.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
-				}
-				else
-				{
-					g2.setColor(new Color(60, 55, 50));
-					g2.fillRect(0, 0, getWidth(), getHeight());
-				}
-				if (iconDim != null)
-				{
-					g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.32f));
-					int m = iconMargin;
-					int w = getWidth(), h = getHeight();
-					int innerW = Math.max(1, w - 2 * m);
-					int innerH = Math.max(1, h - 2 * m);
-					int iw = iconDim.getWidth(), ih = iconDim.getHeight();
-					if (iw > 0 && ih > 0)
-					{
-						double scale = Math.min((double) innerW / iw, (double) innerH / ih);
-						int drawW = Math.max(1, (int) Math.round(iw * scale));
-						int drawH = Math.max(1, (int) Math.round(ih * scale));
-						int x = m + (innerW - drawW) / 2;
-						int y = m + (innerH - drawH) / 2;
-						g2.drawImage(iconDim.getScaledInstance(drawW, drawH, Image.SCALE_SMOOTH), x, y, null);
-					}
-					g2.setComposite(AlphaComposite.SrcOver);
-				}
-				FogOfWarOverlay.paint(g2, getWidth(), getHeight(), clearTop, clearBottom, clearLeft, clearRight, fogBg);
-				g2.dispose();
-				super.paintComponent(g);
+				return new int[]{ p.getRow(), p.getCol() };
 			}
-		};
-		cell.setOpaque(false);
-		cell.setPreferredSize(new Dimension(tileSize, tileSize));
-		return cell;
+		}
+		return new int[]{ 0, 0 };
 	}
 
 	/** Loads the icon for an unlock tile based on its type. */
@@ -579,6 +547,19 @@ public class WorldUnlockGridPanel extends JPanel
 			};
 			iconPanel.setOpaque(false);
 			cell.add(iconPanel, BorderLayout.CENTER);
+			// Clicks hit the icon panel first; cell.mouseClicked would not run (Swing does not bubble).
+			iconPanel.addMouseListener(new MouseAdapter()
+			{
+				@Override
+				public void mouseClicked(MouseEvent e)
+				{
+					if (e.getButton() != MouseEvent.BUTTON1) return;
+					playSound(LeagueScapeSounds.BUTTON_PRESS);
+					showTileDetailPopup(tile, isCenter);
+				}
+			});
+			iconPanel.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+			installGridPanHandlers(iconPanel);
 		}
 
 		cell.addMouseListener(new MouseAdapter()
@@ -592,6 +573,7 @@ public class WorldUnlockGridPanel extends JPanel
 			}
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+		installGridPanHandlers(cell);
 		return cell;
 	}
 
@@ -672,6 +654,7 @@ public class WorldUnlockGridPanel extends JPanel
 			}
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+		installGridPanHandlers(cell);
 		return cell;
 	}
 
@@ -726,7 +709,46 @@ public class WorldUnlockGridPanel extends JPanel
 			}
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+		installGridPanHandlers(cell);
 		return cell;
+	}
+
+	/** Same pan-scroll as task grids: presses on tiles (not the bare viewport) must still scroll the grid. */
+	private void installGridPanHandlers(JPanel cell)
+	{
+		final JScrollPane sp = gridScrollPane;
+		final Point[] drag = gridPanDragStart;
+		cell.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				drag[0] = SwingUtilities.convertPoint(cell, e.getPoint(), sp.getViewport());
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				drag[0] = null;
+			}
+		});
+		cell.addMouseMotionListener(new MouseMotionAdapter()
+		{
+			@Override
+			public void mouseDragged(MouseEvent e)
+			{
+				if (drag[0] == null) return;
+				Point p = SwingUtilities.convertPoint(cell, e.getPoint(), sp.getViewport());
+				JViewport viewport = sp.getViewport();
+				Point pos = viewport.getViewPosition();
+				int dx = drag[0].x - p.x;
+				int dy = drag[0].y - p.y;
+				int nx = Math.max(0, Math.min(pos.x + dx, viewport.getViewSize().width - viewport.getExtentSize().width));
+				int ny = Math.max(0, Math.min(pos.y + dy, viewport.getViewSize().height - viewport.getExtentSize().height));
+				viewport.setViewPosition(new Point(nx, ny));
+				drag[0] = p;
+			}
+		});
 	}
 
 	private void showUnlocksDialog()
@@ -959,7 +981,15 @@ public class WorldUnlockGridPanel extends JPanel
 						onAreaUnlocked.accept(tile.getId());
 					playSound(LeagueScapeSounds.TASK_COMPLETE);
 					detail.dispose();
-					SwingUtilities.invokeLater(this::refresh);
+					int[] rc = findRowColForTileId(tile.getId());
+					pendingClaimFocusRow = rc[0];
+					pendingClaimFocusCol = rc[1];
+					float zs = zoom;
+					GridClaimFocusAnimation.animateZoomToClaim(zs, 1.0f, ZOOM_MIN, ZOOM_MAX, z -> zoom = z, this::refresh,
+						() -> {
+							pendingClaimFocusRow = null;
+							pendingClaimFocusCol = null;
+						});
 				}
 			});
 			body.add(claimBtn);

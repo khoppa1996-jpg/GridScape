@@ -3,7 +3,7 @@ package com.leaguescape.worldunlock;
 import com.leaguescape.LeagueScapePlugin;
 import com.leaguescape.LeagueScapeSounds;
 import com.leaguescape.grid.GridPos;
-import com.leaguescape.util.FogOfWarOverlay;
+import com.leaguescape.util.GridClaimFocusAnimation;
 import com.leaguescape.util.RingBonusPopup;
 import com.leaguescape.icons.IconCache;
 import com.leaguescape.icons.IconResolver;
@@ -30,7 +30,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.image.BufferedImage;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -276,42 +275,14 @@ public class GlobalTaskListPanel extends JPanel
 		int refSize = (combatScaled != null) ? Math.max(combatScaled.getWidth(), combatScaled.getHeight()) : iconMaxFit;
 
 		final List<TaskTile> gridFinal = grid;
-		Map<String, TaskState> stateByPos = new HashMap<>();
-		for (TaskTile t : grid)
-		{
-			stateByPos.put(t.getRow() + "," + t.getCol(), globalTaskListService.getGlobalState(t.getId(), gridFinal));
-		}
-
 		int displayedCount = 0;
+		// Iterate all tiles in grid; skip LOCKED (not revealed)
 		for (TaskTile tile : grid)
 		{
-			TaskState state = stateByPos.get(tile.getRow() + "," + tile.getCol());
-			if (state == null)
-			{
-				continue;
-			}
+			TaskState state = globalTaskListService.getGlobalState(tile.getId(), gridFinal);
+			if (state == TaskState.LOCKED) continue;
 
 			displayedCount++;
-			int row = tile.getRow();
-			int col = tile.getCol();
-			int gx = tile.getCol() + maxRing;
-			int gy = maxRing - tile.getRow();
-			GridBagConstraints gbc = new GridBagConstraints();
-			gbc.gridx = gx;
-			gbc.gridy = gy;
-			gbc.insets = new Insets(2, 2, 2, 2);
-
-			if (state == TaskState.LOCKED)
-			{
-				boolean clearTop = neighborTaskVisible(stateByPos, row + 1, col);
-				boolean clearBottom = neighborTaskVisible(stateByPos, row - 1, col);
-				boolean clearLeft = neighborTaskVisible(stateByPos, row, col - 1);
-				boolean clearRight = neighborTaskVisible(stateByPos, row, col + 1);
-				JPanel fogCell = buildFogLockedCell(tileSize, clearTop, clearBottom, clearLeft, clearRight);
-				gridPanel.add(fogCell, gbc);
-				continue;
-			}
-
 			boolean isCenter = (tile.getRow() == 0 && tile.getCol() == 0);
 
 			BufferedImage taskIcon = null;
@@ -335,6 +306,13 @@ public class GlobalTaskListPanel extends JPanel
 				else
 					taskIcon = defaultTaskIcon != null ? scaleToFitAllowUpscale(defaultTaskIcon, iconMaxFit, iconMaxFit) : null;
 			}
+
+			int gx = tile.getCol() + maxRing;
+			int gy = maxRing - tile.getRow();
+			GridBagConstraints gbc = new GridBagConstraints();
+			gbc.gridx = gx;
+			gbc.gridy = gy;
+			gbc.insets = new Insets(2, 2, 2, 2);
 
 			// Build cell (clickable, shows icon/state) and add to grid
 			JPanel cell = buildTaskCell(tile, state, taskIcon, tileSize, iconMargin, isCenter, gridFinal);
@@ -379,41 +357,6 @@ public class GlobalTaskListPanel extends JPanel
 				vp.setViewPosition(new Point(vpx, vpy));
 			});
 		}
-	}
-
-	private static boolean neighborTaskVisible(Map<String, TaskState> stateByPos, int row, int col)
-	{
-		TaskState s = stateByPos.get(row + "," + col);
-		return s != null && s != TaskState.LOCKED;
-	}
-
-	private JPanel buildFogLockedCell(int tileSize, boolean clearTop, boolean clearBottom, boolean clearLeft, boolean clearRight)
-	{
-		final BufferedImage tileBgFinal = tileBg;
-		final Color fogBg = POPUP_BG;
-		JPanel cell = new JPanel()
-		{
-			@Override
-			protected void paintComponent(Graphics g)
-			{
-				Graphics2D g2 = (Graphics2D) g.create();
-				if (tileBgFinal != null)
-				{
-					g2.drawImage(tileBgFinal.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
-				}
-				else
-				{
-					g2.setColor(new Color(60, 55, 50));
-					g2.fillRect(0, 0, getWidth(), getHeight());
-				}
-				FogOfWarOverlay.paint(g2, getWidth(), getHeight(), clearTop, clearBottom, clearLeft, clearRight, fogBg);
-				g2.dispose();
-				super.paintComponent(g);
-			}
-		};
-		cell.setOpaque(false);
-		cell.setPreferredSize(new Dimension(tileSize, tileSize));
-		return cell;
 	}
 
 	private JPanel buildTaskCell(TaskTile tile, TaskState state, BufferedImage taskIcon,
@@ -536,7 +479,7 @@ public class GlobalTaskListPanel extends JPanel
 			}
 			playSound(LeagueScapeSounds.TASK_COMPLETE);
 			globalTaskListService.claimCenter();
-			SwingUtilities.invokeLater(GlobalTaskListPanel.this::refresh);
+			startClaimFocusAnimation(0, 0);
 			return;
 		}
 
@@ -552,12 +495,21 @@ public class GlobalTaskListPanel extends JPanel
 			playSound(LeagueScapeSounds.TASK_COMPLETE);
 			int ringBonus = globalTaskListService.claimTask(key, tile.getRow(), tile.getCol());
 			showRingBonusPopupIfNeeded(ringBonus, tile.getRow(), tile.getCol());
-			SwingUtilities.invokeLater(GlobalTaskListPanel.this::refresh);
+			startClaimFocusAnimation(tile.getRow(), tile.getCol());
 			return;
 		}
 
 		playSound(LeagueScapeSounds.BUTTON_PRESS);
 		showTaskDetailPopup(tile, state);
+	}
+
+	/** After a claim, smooth zoom toward 1.0 and scroll to the tile (same duration as other grids). */
+	private void startClaimFocusAnimation(int row, int col)
+	{
+		globalTaskListService.saveLastViewedPosition(row, col);
+		float zs = zoom;
+		float ze = 1.0f;
+		GridClaimFocusAnimation.animateZoomToClaim(zs, ze, ZOOM_EXTREME_MIN, ZOOM_MAX, z -> zoom = z, this::refresh, null);
 	}
 
 	private JPanel buildClaimedCell(int tileSize, boolean isCenter)
@@ -696,7 +648,7 @@ public class GlobalTaskListPanel extends JPanel
 				detail.dispose();
 				if (ringBonus > 0)
 					showRingBonusPopupIfNeeded(ringBonus, claimRow, claimCol);
-				SwingUtilities.invokeLater(this::refresh);
+				startClaimFocusAnimation(claimRow, claimCol);
 			});
 			body.add(claimBtn);
 		}
@@ -714,7 +666,7 @@ public class GlobalTaskListPanel extends JPanel
 				detail.dispose();
 				if (ringBonus > 0)
 					showRingBonusPopupIfNeeded(ringBonus, claimRow, claimCol);
-				SwingUtilities.invokeLater(this::refresh);
+				startClaimFocusAnimation(claimRow, claimCol);
 			});
 			body.add(claimBtn);
 		}

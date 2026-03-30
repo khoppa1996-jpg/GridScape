@@ -9,7 +9,7 @@ import com.leaguescape.icons.IconResolver;
 import com.leaguescape.area.AreaGraphService;
 import com.leaguescape.grid.GridPos;
 import com.leaguescape.data.Area;
-import com.leaguescape.util.FogOfWarOverlay;
+import com.leaguescape.util.GridClaimFocusAnimation;
 import com.leaguescape.util.PanelBoundsStore;
 import com.leaguescape.util.RingBonusPopup;
 import com.leaguescape.util.LeagueScapeSwingUtil;
@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JDialog;
@@ -60,6 +61,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JCheckBox;
 import javax.swing.JScrollPane;
+import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Client;
 import net.runelite.client.callback.ClientThread;
@@ -1647,14 +1649,31 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 			LeagueScapeSwingUtil.installUndecoratedWindowDrag(dialog, header);
 			content.add(header, java.awt.BorderLayout.NORTH);
 
-			// Grid panel: revealed tiles plus fogged locked cells; scroll pane with vertical + horizontal bars
+			// Grid panel: only non-locked tiles, inside scroll pane with vertical + horizontal scroll bars
 			JPanel gridPanel = new JPanel();
 			gridPanel.setOpaque(false);
+			JScrollPane scrollPane = new JScrollPane(gridPanel);
+			scrollPane.setOpaque(false);
+			scrollPane.getViewport().setOpaque(false);
+			scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+			scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+			scrollPane.setPreferredSize(new Dimension(400, 320));
+			scrollPane.setBorder(null);
+
 			final float[] zoomHolder = new float[]{ 1.0f };
 			final float ZOOM_MIN = 0.5f;
 			final float ZOOM_MAX = 2.0f;
 			final float ZOOM_STEP = 0.15f;
+			final int[] focusAfterClaimRowCol = new int[]{ -1, -1 };
 			Runnable[] refreshHolder = new Runnable[1];
+			BiConsumer<Integer, Integer> claimFocusAfter = (row, col) -> {
+				focusAfterClaimRowCol[0] = row;
+				focusAfterClaimRowCol[1] = col;
+				GridClaimFocusAnimation.animateZoomToClaim(zoomHolder[0], 1.0f, ZOOM_MIN, ZOOM_MAX, z -> zoomHolder[0] = z, refreshHolder[0], () -> {
+					focusAfterClaimRowCol[0] = -1;
+					focusAfterClaimRowCol[1] = -1;
+				});
+			};
 			refreshHolder[0] = () -> {
 				gridPanel.removeAll();
 				gridPanel.setLayout(new GridBagLayout());
@@ -1673,38 +1692,19 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 				BufferedImage combatScaled = combatRaw != null ? scaleToFitAllowUpscale(combatRaw, iconMaxFit, iconMaxFit) : null;
 				int refSize = (combatScaled != null) ? Math.max(combatScaled.getWidth(), combatScaled.getHeight()) : iconMaxFit;
 
-				Map<String, TaskState> stateByPos = new HashMap<>();
-				for (TaskTile t : grid)
-				{
-					stateByPos.put(t.getRow() + "," + t.getCol(), taskGridService.getState(areaId, t.getId(), grid));
-				}
-
 				for (TaskTile tile : grid)
 				{
-					TaskState state = stateByPos.get(tile.getRow() + "," + tile.getCol());
-					if (state == null)
+					TaskState state = taskGridService.getState(areaId, tile.getId(), grid);
+					if (state == TaskState.LOCKED)
 					{
 						continue;
 					}
-					int row = tile.getRow();
-					int col = tile.getCol();
 					int gx = tile.getCol() + center;
 					int gy = center - tile.getRow();
 					GridBagConstraints gbc = new GridBagConstraints();
 					gbc.gridx = gx;
 					gbc.gridy = gy;
 					gbc.insets = new Insets(2, 2, 2, 2);
-
-					if (state == TaskState.LOCKED)
-					{
-						boolean clearTop = mapOverlayNeighborTaskVisible(stateByPos, row + 1, col);
-						boolean clearBottom = mapOverlayNeighborTaskVisible(stateByPos, row - 1, col);
-						boolean clearLeft = mapOverlayNeighborTaskVisible(stateByPos, row, col - 1);
-						boolean clearRight = mapOverlayNeighborTaskVisible(stateByPos, row, col + 1);
-						JPanel fogCell = buildFogLockedTaskCell(tileSquare, tileSize, clearTop, clearBottom, clearLeft, clearRight);
-						gridPanel.add(fogCell, gbc);
-						continue;
-					}
 
 					boolean isMystery = tile.isMystery(unlocked, areaId);
 					BufferedImage taskIcon;
@@ -1756,23 +1756,29 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 						else
 							taskIcon = defaultTaskIcon != null ? scaleToFitAllowUpscale(defaultTaskIcon, iconMaxFit, iconMaxFit) : null;
 					}
-					JPanel cell = buildTaskCell(areaId, tile, state, checkmarkImg, padlockImg, tileSquare, buttonRect, taskIcon, POPUP_TEXT, refreshHolder[0], dialog, area, isMystery, tileSize, iconMargin);
+					JPanel cell = buildTaskCell(areaId, tile, state, checkmarkImg, padlockImg, tileSquare, buttonRect, taskIcon, POPUP_TEXT, refreshHolder[0], claimFocusAfter, dialog, area, isMystery, tileSize, iconMargin);
 					gridPanel.add(cell, gbc);
 				}
 				gridPanel.revalidate();
 				gridPanel.repaint();
 				if (pointsLabelHolder[0] != null)
 					pointsLabelHolder[0].setText(getPointsDisplayText(area));
+				if (focusAfterClaimRowCol[0] >= 0)
+				{
+					final int fr = focusAfterClaimRowCol[0];
+					final int fc = focusAfterClaimRowCol[1];
+					final int fs = tileSize;
+					final int ctr = center;
+					SwingUtilities.invokeLater(() -> {
+						JViewport vp = scrollPane.getViewport();
+						if (vp == null) return;
+						java.awt.Point p = GridClaimFocusAnimation.computeViewPositionForTile(vp, gridPanel, fr, fc, ctr, fs, 4);
+						vp.setViewPosition(p);
+					});
+				}
 			};
 			refreshHolder[0].run();
 
-			JScrollPane scrollPane = new JScrollPane(gridPanel);
-			scrollPane.setOpaque(false);
-			scrollPane.getViewport().setOpaque(false);
-			scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-			scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-			scrollPane.setPreferredSize(new Dimension(400, 320));
-			scrollPane.setBorder(null);
 			// Scroll wheel over grid: zoom in/out (consume so scroll pane doesn't scroll)
 			scrollPane.getViewport().addMouseWheelListener(e -> {
 				float prev = zoomHolder[0];
@@ -1858,45 +1864,10 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 	private static final int CLAIMED_CHECKMARK_SIZE = 18;
 	private static final int CLAIMED_CHECKMARK_INSET = 4;
 
-	private static boolean mapOverlayNeighborTaskVisible(Map<String, TaskState> stateByPos, int row, int col)
-	{
-		TaskState s = stateByPos.get(row + "," + col);
-		return s != null && s != TaskState.LOCKED;
-	}
-
-	private JPanel buildFogLockedTaskCell(BufferedImage tileBg, int tileSize, boolean clearTop, boolean clearBottom,
-		boolean clearLeft, boolean clearRight)
-	{
-		final BufferedImage tileBgFinal = tileBg;
-		final Color fogBg = POPUP_BG;
-		JPanel cell = new JPanel()
-		{
-			@Override
-			protected void paintComponent(Graphics g)
-			{
-				Graphics2D g2 = (Graphics2D) g.create();
-				if (tileBgFinal != null)
-				{
-					g2.drawImage(tileBgFinal.getScaledInstance(getWidth(), getHeight(), Image.SCALE_SMOOTH), 0, 0, null);
-				}
-				else
-				{
-					g2.setColor(new Color(60, 55, 50));
-					g2.fillRect(0, 0, getWidth(), getHeight());
-				}
-				FogOfWarOverlay.paint(g2, getWidth(), getHeight(), clearTop, clearBottom, clearLeft, clearRight, fogBg);
-				g2.dispose();
-				super.paintComponent(g);
-			}
-		};
-		cell.setOpaque(false);
-		cell.setPreferredSize(new Dimension(tileSize, tileSize));
-		return cell;
-	}
-
 	private JPanel buildTaskCell(String areaId, TaskTile tile, TaskState state,
 		BufferedImage checkmarkImg, BufferedImage padlockImg, BufferedImage tileBg, BufferedImage buttonRect,
-		BufferedImage taskIcon, Color textColor, Runnable onRefresh, JDialog parentDialog, Area area, boolean isMystery, int tileSize, int iconMargin)
+		BufferedImage taskIcon, Color textColor, Runnable onRefresh, BiConsumer<Integer, Integer> onClaimFocus,
+		JDialog parentDialog, Area area, boolean isMystery, int tileSize, int iconMargin)
 	{
 		boolean isCenter = (tile.getRow() == 0 && tile.getCol() == 0);
 		if (state == TaskState.CLAIMED)
@@ -1990,13 +1961,13 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 							LeagueScapeSounds.play(audioPlayer, LeagueScapeSounds.TASK_COMPLETE, client);
 							int ringBonus = taskGridService.setClaimed(areaId, tile.getId());
 							showAreaRingBonusIfNeeded(parentDialog, areaId, tile, ringBonus);
-							SwingUtilities.invokeLater(onRefresh);
+							onClaimFocus.accept(tile.getRow(), tile.getCol());
 						});
 					});
 					return;
 				}
 				LeagueScapeSounds.play(audioPlayer, LeagueScapeSounds.BUTTON_PRESS, client);
-				showTaskDetailPopup(parentDialog, areaId, tile, state, buttonRect, checkmarkImg, textColor, onRefresh, mystery);
+				showTaskDetailPopup(parentDialog, areaId, tile, state, buttonRect, checkmarkImg, textColor, onRefresh, onClaimFocus, mystery);
 			}
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
@@ -2084,7 +2055,8 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 	}
 
 	private void showTaskDetailPopup(JDialog parentDialog, String areaId, TaskTile tile, TaskState state,
-		BufferedImage buttonRect, BufferedImage checkmarkImg, Color textColor, Runnable onRefresh, boolean isMystery)
+		BufferedImage buttonRect, BufferedImage checkmarkImg, Color textColor, Runnable onRefresh,
+		BiConsumer<Integer, Integer> onClaimFocus, boolean isMystery)
 	{
 		Frame frameOwner = null;
 		if (parentDialog != null)
@@ -2158,7 +2130,7 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 						int ringBonus = taskGridService.setClaimed(areaId, tile.getId());
 						detail.dispose();
 						showAreaRingBonusIfNeeded(parentDialog, areaId, tile, ringBonus);
-						SwingUtilities.invokeLater(onRefresh);
+						onClaimFocus.accept(tile.getRow(), tile.getCol());
 					});
 				});
 			});
@@ -2187,7 +2159,7 @@ public class LeagueScapeMapOverlay extends Overlay implements MouseListener
 						int ringBonus = taskGridService.setClaimed(areaId, tile.getId());
 						detail.dispose();
 						showAreaRingBonusIfNeeded(parentDialog, areaId, tile, ringBonus);
-						SwingUtilities.invokeLater(onRefresh);
+						onClaimFocus.accept(tile.getRow(), tile.getCol());
 					});
 				});
 			});

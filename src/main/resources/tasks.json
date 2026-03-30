@@ -1023,12 +1023,6 @@
     "area": "lumbridge"
   },
   {
-    "displayName": "Obtain Iron Boots in Lumbridge",
-    "taskType": "Collection Log",
-    "difficulty": 1,
-    "area": "lumbridge"
-  },
-  {
     "displayName": "Mine some Ore with a Steel Pickaxe",
     "taskType": "Mining",
     "difficulty": 1,
@@ -29208,13 +29202,6 @@
     "difficulty": 4,
     "area": "weiss",
     "requirements": "The Curse of Arrav",
-    "onceOnly": true
-  },
-  {
-    "displayName": "Obtain Some Bronze boots",
-    "taskType": "Collection Log",
-    "difficulty": 1,
-    "requirements": "taverley",
     "onceOnly": true
   },
   {
