@@ -44,7 +44,7 @@ public final class TaskTypes
 	 */
 	private static final Set<String> REPEATABLE_WORLD_UNLOCK_SKILL_TYPES_LOWER = new HashSet<>(Arrays.asList(
 		"cooking", "crafting", "firemaking", "fletching", "fishing", "hunter",
-		"mining", "prayer", "thieving", "woodcutting"));
+		"mining", "thieving", "woodcutting"));
 
 	/** True if {@code taskType} is in the World Unlock repeatable-skill whitelist (case-insensitive). */
 	public static boolean isRepeatableWorldUnlockSkillType(String taskType)

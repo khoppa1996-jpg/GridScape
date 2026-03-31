@@ -932,6 +932,13 @@
     "difficulty": 2
   },
   {
+    "displayName": "Equip a Cursed Amulet of Magic",
+    "taskType": "Equipment",
+    "difficulty": 1,
+    "area": "shayzien, kingstown",
+    "areaRequirement": "any"
+  },
+  {
     "displayName": "Complete a Beginner Clue in Lumbridge",
     "taskType": "Clue Scroll",
     "difficulty": 1,
