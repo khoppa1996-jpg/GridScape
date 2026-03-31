@@ -377,7 +377,7 @@ public class WorldUnlockGridPanel extends JPanel
 			gbc.gridx = rc[1] + maxRing;
 			gbc.gridy = maxRing - rc[0];
 			gbc.insets = new Insets(2, 2, 2, 2);
-			gridPanel.add(buildFogOnlyCell(f, tileSize), gbc);
+			gridPanel.add(buildFogOnlyCell(rc[0], rc[1], f, tileSize), gbc);
 		}
 		gridPanel.revalidate();
 		gridPanel.repaint();
@@ -388,12 +388,13 @@ public class WorldUnlockGridPanel extends JPanel
 			final int fc = pendingClaimFocusCol;
 			final int mr = maxRing;
 			final int ts = tileSize;
-			SwingUtilities.invokeLater(() -> {
+			SwingUtilities.invokeLater(() -> SwingUtilities.invokeLater(() -> {
 				JViewport vp = gridScrollPane.getViewport();
 				if (vp == null) return;
+				gridScrollPane.validate();
 				Point p = GridClaimFocusAnimation.computeViewPositionForTile(vp, gridPanel, fr, fc, mr, ts, 4);
 				vp.setViewPosition(p);
-			});
+			}));
 		}
 	}
 
@@ -403,7 +404,7 @@ public class WorldUnlockGridPanel extends JPanel
 	 * {@code edgeFlags} is {@code [north, east, south, west]} from {@link com.leaguescape.util.FrontierFogHelpers#cardinalFlagsWorldUnlock};
 	 * {@link com.leaguescape.util.FogTileCompositor} maps geographic cardinals to screen quadrants (same convention as task grids).
 	 */
-	private JPanel buildFogOnlyCell(boolean[] edgeFlags, int tileSize)
+	private JPanel buildFogOnlyCell(int row, int col, boolean[] edgeFlags, int tileSize)
 	{
 		final BufferedImage bg = fogTileBg;
 		final BufferedImage ftl = fogTopLeft;
@@ -430,6 +431,7 @@ public class WorldUnlockGridPanel extends JPanel
 		cell.setOpaque(false);
 		cell.setPreferredSize(new Dimension(tileSize, tileSize));
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
+		GridClaimFocusAnimation.putGridCellKeys(cell, row, col);
 		return cell;
 	}
 
@@ -594,9 +596,17 @@ public class WorldUnlockGridPanel extends JPanel
 		WorldUnlockTile tile = placement.getTile();
 
 		if (isClaimed)
-			return buildClaimedCell(tile, isCenter, tileIcon, tileSize, iconMargin);
+		{
+			JPanel claimedPanel = buildClaimedCell(tile, isCenter, tileIcon, tileSize, iconMargin);
+			GridClaimFocusAnimation.putGridCellKeys(claimedPanel, placement.getRow(), placement.getCol());
+			return claimedPanel;
+		}
 		if (isUnlocked)
-			return buildRevealedUnclaimedCell(tile, isCenter, tileIcon, tileSize, iconMargin);
+		{
+			JPanel revealed = buildRevealedUnclaimedCell(tile, isCenter, tileIcon, tileSize, iconMargin);
+			GridClaimFocusAnimation.putGridCellKeys(revealed, placement.getRow(), placement.getCol());
+			return revealed;
+		}
 		// else: revealed but not unlocked (locked) — padlock top-right, size scales with tile when zoomed; frontier fog corners like fog-only cells
 		final BufferedImage bg = tileBg;
 		final BufferedImage padlock = padlockImg;
@@ -693,6 +703,7 @@ public class WorldUnlockGridPanel extends JPanel
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
 		installGridPanHandlers(cell);
+		GridClaimFocusAnimation.putGridCellKeys(cell, placement.getRow(), placement.getCol());
 		return cell;
 	}
 

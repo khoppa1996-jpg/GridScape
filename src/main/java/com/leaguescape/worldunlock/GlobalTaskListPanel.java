@@ -27,6 +27,7 @@ import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
+import javax.swing.JViewport;
 import java.awt.RenderingHints;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -122,7 +123,16 @@ public class GlobalTaskListPanel extends JPanel
 	/** Brief focus highlight from task hub / frontier / search jump. */
 	private Integer highlightRow;
 	private Integer highlightCol;
-	private Timer highlightClearTimer;
+	/** Two pulse flashes after hub focus (ms). */
+	private static final int FOCUS_FLASH_ON_MS = 280;
+	private static final int FOCUS_FLASH_GAP_MS = 200;
+	private Timer highlightFlashTimer;
+	/**
+	 * While non-null, {@link #refresh()} keeps the viewport centered on this cell (smooth zoom + pan, same as claim).
+	 * Cleared when {@link GridClaimFocusAnimation#animateZoomToClaim} completes.
+	 */
+	private Integer focusLockRow;
+	private Integer focusLockCol;
 	private GlobalTaskHub taskHubPanel;
 	/** Undecorated extension window docked to the left of {@link #parentDialog}; does not change the main panel size. */
 	private JDialog taskHubDialog;
@@ -529,32 +539,37 @@ public class GlobalTaskListPanel extends JPanel
 		// Always focus view on most recently viewed tile (or center if none)
 		if (scrollPane != null && displayedCount > 0)
 		{
-			int[] last = globalTaskListService.loadLastViewedPosition();
-			final int focusRow = (last != null && last.length >= 2) ? last[0] : 0;
-			final int focusCol = (last != null && last.length >= 2) ? last[1] : 0;
+			final int focusRow;
+			final int focusCol;
+			if (focusLockRow != null && focusLockCol != null)
+			{
+				focusRow = focusLockRow;
+				focusCol = focusLockCol;
+			}
+			else
+			{
+				int[] last = globalTaskListService.loadLastViewedPosition();
+				focusRow = (last != null && last.length >= 2) ? last[0] : 0;
+				focusCol = (last != null && last.length >= 2) ? last[1] : 0;
+			}
 			final int fmaxRing = maxRing;
 			final int ftileSize = tileSize;
 			final int fpad = 2 * 2;
-			SwingUtilities.invokeLater(() -> {
-				// Match World Unlock layout coords
-				int gx = focusCol + fmaxRing;
-				int gy = fmaxRing - focusRow;
-				int cellW = ftileSize + fpad;
-				int cellH = ftileSize + fpad;
-				int px = gx * cellW;
-				int py = gy * cellH;
-				javax.swing.JViewport vp = scrollPane.getViewport();
-				if (vp == null) return;
-				int vw = vp.getExtentSize().width;
-				int vh = vp.getExtentSize().height;
-				java.awt.Dimension viewSize = gridPanel.getPreferredSize();
-				int maxX = Math.max(0, viewSize.width - vw);
-				int maxY = Math.max(0, viewSize.height - vh);
-				// Center the view on the tile; clamp so outer extents remain visible
-				int vpx = Math.max(0, Math.min(px - vw / 2 + cellW / 2, maxX));
-				int vpy = Math.max(0, Math.min(py - vh / 2 + cellH / 2, maxY));
-				vp.setViewPosition(new Point(vpx, vpy));
-			});
+			/* Defer one extra frame so GridBagLayout has assigned non-zero cell bounds before centering. */
+			SwingUtilities.invokeLater(() -> SwingUtilities.invokeLater(() -> {
+				JViewport vp = scrollPane.getViewport();
+				if (vp == null)
+					return;
+				scrollPane.validate();
+				Point p = GridClaimFocusAnimation.computeViewPositionForTile(
+					vp, gridPanel, focusRow, focusCol, fmaxRing, ftileSize, fpad);
+				vp.setViewPosition(p);
+			}));
+		}
+		else
+		{
+			focusLockRow = null;
+			focusLockCol = null;
 		}
 	}
 
@@ -592,27 +607,94 @@ public class GlobalTaskListPanel extends JPanel
 	}
 
 	/**
-	 * Scrolls the grid to {@code (row,col)}, optionally bumps zoom for interaction, and shows a short highlight ring.
-	 * Used by the task hub and bookmarks.
+	 * Same smooth zoom + pan as {@link #startClaimFocusAnimation(int, int)}, then two additional highlight flashes
+	 * after the transition. Used by the task hub.
 	 */
 	public void focusTile(int row, int col)
 	{
-		if (highlightClearTimer != null)
-			highlightClearTimer.stop();
+		if (highlightFlashTimer != null)
+			highlightFlashTimer.stop();
 		globalTaskListService.saveLastViewedPosition(row, col);
-		if (zoom < ZOOM_INTERACTIVE_MIN)
-			zoom = ZOOM_INTERACTIVE_MIN;
+		focusLockRow = row;
+		focusLockCol = col;
 		highlightRow = row;
 		highlightCol = col;
-		refresh();
-		highlightClearTimer = new Timer(550, e -> {
-			highlightClearTimer.stop();
-			highlightRow = null;
-			highlightCol = null;
-			SwingUtilities.invokeLater(this::refresh);
+		float zs = zoom;
+		float ze = 1.0f;
+		GridClaimFocusAnimation.animateZoomToClaim(zs, ze, ZOOM_EXTREME_MIN, ZOOM_MAX, z -> zoom = z, this::refresh, () -> {
+			focusLockRow = null;
+			focusLockCol = null;
+			scheduleHubDataReload();
+			startFocusHighlightFlashes(row, col);
 		});
-		highlightClearTimer.setRepeats(false);
-		highlightClearTimer.start();
+		SwingUtilities.invokeLater(() -> {
+			if (parentDialog != null)
+				parentDialog.toFront();
+			if (scrollPane != null)
+			{
+				scrollPane.setFocusable(true);
+				scrollPane.requestFocusInWindow();
+			}
+		});
+	}
+
+	/**
+	 * After hub focus zoom completes: two additional flashes (off → on → off → on → off) on top of the highlight
+	 * already shown during the zoom.
+	 */
+	private void startFocusHighlightFlashes(final int row, final int col)
+	{
+		if (highlightFlashTimer != null)
+			highlightFlashTimer.stop();
+		final int[] phase = { 0 };
+		highlightFlashTimer = new Timer(FOCUS_FLASH_ON_MS, null);
+		highlightFlashTimer.addActionListener(e -> {
+			Timer tm = (Timer) e.getSource();
+			switch (phase[0])
+			{
+				case 0:
+					highlightRow = null;
+					highlightCol = null;
+					refresh();
+					phase[0] = 1;
+					tm.setDelay(FOCUS_FLASH_GAP_MS);
+					break;
+				case 1:
+					highlightRow = row;
+					highlightCol = col;
+					refresh();
+					phase[0] = 2;
+					tm.setDelay(FOCUS_FLASH_ON_MS);
+					break;
+				case 2:
+					highlightRow = null;
+					highlightCol = null;
+					refresh();
+					phase[0] = 3;
+					tm.setDelay(FOCUS_FLASH_GAP_MS);
+					break;
+				case 3:
+					highlightRow = row;
+					highlightCol = col;
+					refresh();
+					phase[0] = 4;
+					tm.setDelay(FOCUS_FLASH_ON_MS);
+					break;
+				case 4:
+					highlightRow = null;
+					highlightCol = null;
+					refresh();
+					tm.stop();
+					highlightFlashTimer = null;
+					break;
+				default:
+					tm.stop();
+					highlightFlashTimer = null;
+					break;
+			}
+		});
+		highlightFlashTimer.setRepeats(true);
+		highlightFlashTimer.start();
 	}
 
 	/** Opens the same task detail popup as a grid click (for the task hub). */
@@ -769,6 +851,7 @@ public class GlobalTaskListPanel extends JPanel
 			}
 		});
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+		GridClaimFocusAnimation.putGridCellKeys(cell, tile.getRow(), tile.getCol());
 		return cell;
 	}
 
@@ -803,6 +886,7 @@ public class GlobalTaskListPanel extends JPanel
 		cell.setOpaque(false);
 		cell.setPreferredSize(new Dimension(tileSize, tileSize));
 		cell.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR));
+		GridClaimFocusAnimation.putGridCellKeys(cell, row, col);
 		return cell;
 	}
 
@@ -855,14 +939,19 @@ public class GlobalTaskListPanel extends JPanel
 		showTaskDetailPopup(tile, state);
 	}
 
-	/** After a claim, smooth zoom toward 1.0 and scroll to the tile (same duration as other grids). */
+	/** After a claim, smooth zoom toward 1.0 and keep the viewport centered on the tile (same as task hub focus). */
 	private void startClaimFocusAnimation(int row, int col)
 	{
 		globalTaskListService.saveLastViewedPosition(row, col);
+		focusLockRow = row;
+		focusLockCol = col;
 		float zs = zoom;
 		float ze = 1.0f;
-		GridClaimFocusAnimation.animateZoomToClaim(zs, ze, ZOOM_EXTREME_MIN, ZOOM_MAX, z -> zoom = z, this::refresh, null);
-		scheduleHubDataReload();
+		GridClaimFocusAnimation.animateZoomToClaim(zs, ze, ZOOM_EXTREME_MIN, ZOOM_MAX, z -> zoom = z, this::refresh, () -> {
+			focusLockRow = null;
+			focusLockCol = null;
+			scheduleHubDataReload();
+		});
 	}
 
 	private JPanel buildClaimedCell(TaskTile tile, int tileSize, boolean isCenter)
@@ -915,6 +1004,7 @@ public class GlobalTaskListPanel extends JPanel
 		if (isHighlightCell(tile.getRow(), tile.getCol()))
 			cell.setBorder(new LineBorder(new Color(255, 235, 140), 2));
 		attachBookmarkPopup(cell, tile);
+		GridClaimFocusAnimation.putGridCellKeys(cell, tile.getRow(), tile.getCol());
 		return cell;
 	}
 
